@@ -9,7 +9,26 @@ connectDB();
 // Middleware
 app.use(express.json());
 const cors = require('cors');
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*', credentials: true }));
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Dating App API is running!',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      admin: '/admin/login',
+      maleUser: '/male-user/register',
+      femaleUser: '/female-user/register',
+      agency: '/agency/register'
+    }
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ success: true, message: 'API is healthy' });
+});
 
 // Routes
 app.use('/admin', require('./routes/adminRoutes/admin'));

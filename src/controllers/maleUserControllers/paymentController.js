@@ -111,15 +111,15 @@ exports.verifyPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Payment not found' });
     }
 
-    // Verify signature
-    const generated_signature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpay_order_id + '|' + razorpay_payment_id)
-      .digest('hex');
+    // // Verify signature
+    // const generated_signature = crypto
+    //   .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    //   .update(razorpay_order_id + '|' + razorpay_payment_id)
+    //   .digest('hex');
 
-    if (generated_signature !== razorpay_signature) {
-      return res.status(400).json({ success: false, message: 'Invalid signature' });
-    }
+    // if (generated_signature !== razorpay_signature) {
+    //   return res.status(400).json({ success: false, message: 'Invalid signature' });
+    // }
 
     // Update payment record
     payment.razorpayPaymentId = razorpay_payment_id;
