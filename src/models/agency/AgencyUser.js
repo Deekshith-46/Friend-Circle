@@ -15,7 +15,7 @@ const agencyUserSchema = new mongoose.Schema({
 	aadharNumber: { type: String },
 	panNumber: { type: String },
 	image: { type: String },
-	referralCode: { type: String },
+	referralCode: { type: String, unique: true, sparse: true },
 	status: { type: String, enum: ['active', 'inactive'], default: 'inactive' },
 	reviewStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
 	kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }

@@ -32,6 +32,11 @@ const femaleUserSchema = new mongoose.Schema({
   onlineStatus: { type: Boolean, default: false },
   walletBalance: { type: Number, default: 0 },
   coinBalance: { type: Number, default: 0 },
+  // Referral system
+  referralCode: { type: String, unique: true, sparse: true },
+  referredByFemale: { type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' },
+  referredByAgency: { type: mongoose.Schema.Types.ObjectId, ref: 'AgencyUser' },
+  referralBonusAwarded: { type: Boolean, default: false },
 }, { timestamps: true });
 
 module.exports = mongoose.model('FemaleUser', femaleUserSchema);

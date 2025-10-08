@@ -4,7 +4,7 @@ const maleUserSchema = new mongoose.Schema({
   firstName: { type: String, required: true },
   lastName: { type: String},
   email: { type: String, required: true, unique: true },
-  mobileNumber: { type: String, unique: true },
+  mobileNumber: { type: String },
   password: { type: String, required: true },
   bio: { type: String },
   dateOfBirth: { type: Date },
@@ -24,6 +24,10 @@ const maleUserSchema = new mongoose.Schema({
   coinBalance: { type: Number, default: 0 },
   isVerified: { type: Boolean, default: false },
   otp: { type: Number }, // OTP for verification
+  // Referral system
+  referralCode: { type: String, unique: true, sparse: true }, // 8-char alphanumeric
+  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }, // Who referred this user
+  referralBonusAwarded: { type: Boolean, default: false }, // Ensure one-time award after verification
 }, { timestamps: true });
 
 module.exports = mongoose.model('MaleUser', maleUserSchema);

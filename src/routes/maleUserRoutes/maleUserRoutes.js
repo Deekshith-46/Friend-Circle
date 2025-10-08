@@ -41,6 +41,9 @@ router.post('/verify-login-otp', maleUserController.verifyLoginOtp);
 // Verify OTP and activate user
 router.post('/verify-otp', maleUserController.verifyOtp);
 
+// Get user profile
+router.get('/me', auth, maleUserController.getUserProfile);
+
 // Upload Images via form-data (field: images)
 router.post('/upload-image', auth, parser.array('images', 5), maleUserController.uploadImage);
 
@@ -63,5 +66,7 @@ router.post('/buy-coins', auth, maleUserController.buyCoins);
 router.post('/block', auth, blockListController.blockUser);
 router.post('/unblock', auth, blockListController.unblockUser);
 router.get('/block-list', auth, blockListController.getBlockList);
+
+// Payment Routes are now handled directly in app.js
 
 module.exports = router;

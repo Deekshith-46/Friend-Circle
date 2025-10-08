@@ -8,6 +8,8 @@ connectDB();
 
 // Middleware
 app.use(express.json());
+const cors = require('cors');
+app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173', credentials: true }));
 
 // Routes
 app.use('/admin', require('./routes/adminRoutes/admin'));
@@ -22,6 +24,7 @@ app.use('/admin/plans', require('./routes/adminRoutes/plan'));
 app.use('/admin/packages', require('./routes/adminRoutes/package'));
 app.use('/admin/staff', require('./routes/adminRoutes/staff'));
 app.use('/admin/users', require('./routes/adminRoutes/users'));
+app.use('/admin/payouts', require('./routes/adminRoutes/payoutRoutes'));
 
 
 // Routes for Female User
@@ -31,6 +34,7 @@ app.use('/female-user/favourites', require('./routes/femaleUserRoutes/favourites
 app.use('/female-user/chat', require('./routes/femaleUserRoutes/chatRoutes'));  // Female User Chat
 app.use('/female-user/earnings', require('./routes/femaleUserRoutes/earningsRoutes'));  // Female User Earnings
 app.use('/female-user/kyc', require('./routes/femaleUserRoutes/kycRoutes'));  // KYC Routes
+app.use('/female-user/withdrawals', require('./routes/femaleUserRoutes/withdrawalRoutes'));  // Withdrawal Routes
 app.use('/female-user/blocklist', require('./routes/femaleUserRoutes/blockListRoutes'));  // Blocklist Routes
 
 // Routes for Male User
@@ -40,9 +44,12 @@ app.use('/male-user/favourites', require('./routes/maleUserRoutes/favouritesRout
 app.use('/male-user/chat', require('./routes/maleUserRoutes/chatRoutes')); // Chat Routes
 app.use('/male-user/blocklist', require('./routes/maleUserRoutes/blockListRoutes')); // Block List Routes
 app.use('/male-user/profile', require('./routes/maleUserRoutes/profileRoutes')); // Profile Routes
+app.use('/male-user/payment', require('./routes/maleUserRoutes/paymentRoutes')); // Payment Routes
+app.use('/male-user/gifts', require('./routes/maleUserRoutes/giftRoutes')); // Gift Routes
 
 // Routes for Agency User
 app.use('/agency', require('./routes/agencyRoutes/agencyUserRoutes'));
+app.use('/agency/withdrawals', require('./routes/agencyRoutes/withdrawalRoutes'));
 
 // Error middleware
 app.use(require('./middlewares/errorMiddleware'));

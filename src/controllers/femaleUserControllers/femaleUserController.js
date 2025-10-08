@@ -5,11 +5,30 @@ const FemaleImage = require('../../models/femaleUser/Image');
 
 // User Registration (Email and Mobile Number)
 exports.registerUser = async (req, res) => {
-  const { email, mobileNumber } = req.body;
+  const { email, mobileNumber, referralCode } = req.body;
   const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
 
   try {
-    const newUser = new FemaleUser({ email, mobileNumber, otp });
+    // Link referral if provided: can be a FemaleUser or AgencyUser code
+    let referredByFemale = null;
+    let referredByAgency = null;
+    if (referralCode) {
+      const FemaleModel = require('../../models/femaleUser/FemaleUser');
+      const AgencyModel = require('../../models/agency/AgencyUser');
+      referredByFemale = await FemaleModel.findOne({ referralCode });
+      if (!referredByFemale) {
+        referredByAgency = await AgencyModel.findOne({ referralCode });
+      }
+    }
+
+    // Ensure unique referral code for this user
+    const generateReferralCode = require('../../utils/generateReferralCode');
+    let myReferral = generateReferralCode();
+    while (await FemaleUser.findOne({ referralCode: myReferral })) {
+      myReferral = generateReferralCode();
+    }
+
+    const newUser = new FemaleUser({ email, mobileNumber, otp, referralCode: myReferral, referredByFemale: referredByFemale?._id, referredByAgency: referredByAgency?._id });
     await newUser.save();
     await sendOtp(email, otp); // Send OTP via SendGrid
 
@@ -109,6 +128,31 @@ exports.verifyOtp = async (req, res) => {
       const token = generateToken(user._id);
       user.isVerified = true; // Mark the user as verified
       user.otp = undefined;   // Optionally clear OTP after verification
+
+      // Award referral bonus once after verification
+      if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
+        const Transaction = require('../../models/common/Transaction');
+        const FEMALE_BONUS = 15; // coins to both
+
+        if (user.referredByFemale) {
+          const FemaleModel = require('../../models/femaleUser/FemaleUser');
+          const referrer = await FemaleModel.findById(user.referredByFemale);
+          if (referrer) {
+            referrer.coinBalance = (referrer.coinBalance || 0) + FEMALE_BONUS;
+            user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+            await referrer.save();
+            await Transaction.create({ userType: 'female', userId: referrer._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral bonus for inviting ${user.email}`, balanceAfter: referrer.coinBalance, createdBy: referrer._id });
+            await Transaction.create({ userType: 'female', userId: user._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral signup bonus using referral code`, balanceAfter: user.coinBalance, createdBy: user._id });
+            user.referralBonusAwarded = true;
+          }
+        } else if (user.referredByAgency) {
+          // Agency refers female; only female gets bonus or both? Requirement says agency can refer to females. We'll credit the female only.
+          user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+          await Transaction.create({ userType: 'female', userId: user._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral signup bonus via agency`, balanceAfter: user.coinBalance, createdBy: user._id });
+          user.referralBonusAwarded = true;
+        }
+      }
+
       await user.save();
       res.json({ success: true, token });
     } else {
