@@ -312,6 +312,10 @@ exports.uploadVideo = async (req, res) => {
     }
 
     const videoUrl = req.file.path;
+    const publicId = req.file.filename; // cloudinary public_id
+    const resourceType = req.file.resource_type || 'video';
+    const duration = req.file.duration;
+    const bytes = req.file.bytes;
     const user = await FemaleUser.findById(req.user.id);
     
     // Delete old video if exists
@@ -324,8 +328,18 @@ exports.uploadVideo = async (req, res) => {
     await user.save();
 
     res.json({ 
-      success: true, 
-      message: 'Video uploaded successfully.', 
+      success: true,
+      message: 'Video uploaded successfully.',
+      // New structured payload for frontend consumers
+      data: {
+        url: videoUrl,
+        secureUrl: videoUrl,
+        publicId,
+        resourceType,
+        duration,
+        bytes
+      },
+      // Backward compatibility
       videoUrl: videoUrl 
     });
   } catch (err) {
