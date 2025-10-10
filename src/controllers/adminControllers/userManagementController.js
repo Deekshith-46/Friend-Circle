@@ -7,18 +7,21 @@ const AgencyUser = require('../../models/agency/AgencyUser');
 // List users
 exports.listUsers = async (req, res) => {
 	try {
-		const { type } = req.query; // 'male' | 'female' | undefined (all)
+		const { type } = req.query; // 'male' | 'female' | 'agency' | undefined (all)
 		let data;
 		if (type === 'male') {
 			data = await MaleUser.find();
 		} else if (type === 'female') {
 			data = await FemaleUser.find();
+		} else if (type === 'agency') {
+			data = await AgencyUser.find();
 		} else {
-			const [males, females] = await Promise.all([
+			const [males, females, agencies] = await Promise.all([
 				MaleUser.find(),
-				FemaleUser.find()
+				FemaleUser.find(),
+				AgencyUser.find()
 			]);
-			data = { males, females };
+			data = { males, females, agencies };
 		}
 		return res.json({ success: true, data });
 	} catch (err) {
