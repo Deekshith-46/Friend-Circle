@@ -1,14 +1,20 @@
 const express = require('express');
 const router = express.Router();
+const auth = require('../../middlewares/authMiddleware');
 const femaleUserController = require('../../controllers/femaleUserControllers/femaleUserController');
 const followingFollowersController = require('../../controllers/femaleUserControllers/followingFollowersController');
 const chatController = require('../../controllers/femaleUserControllers/chatController');
 const earningsController = require('../../controllers/femaleUserControllers/earningsController');
 const kycController = require('../../controllers/femaleUserControllers/kycController');
 const blockListController = require('../../controllers/femaleUserControllers/blockListController');
-const auth = require('../../middlewares/authMiddleware');
 const { parser, videoParser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
+const { getSelectableOptions } = require('../../controllers/common/optionsController');
+
+// Public selectable options for female users
+router.get('/options', getSelectableOptions);
+
+ 
 
 // Registration and OTP
 router.post('/register', femaleUserController.registerUser);

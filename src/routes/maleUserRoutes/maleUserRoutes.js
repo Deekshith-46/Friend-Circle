@@ -6,6 +6,7 @@ const blockListController = require('../../controllers/maleUserControllers/block
 const auth = require('../../middlewares/authMiddleware');
 const { parser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
+const { getSelectableOptions } = require('../../controllers/common/optionsController');
 
 // Register Male User
 router.post('/register', maleUserController.registerUser);
@@ -37,6 +38,9 @@ router.get('/me/transactions', auth, async (req, res) => {
 
 // Verify Login OTP
 router.post('/verify-login-otp', maleUserController.verifyLoginOtp);
+
+// Public selectable options for male users
+router.get('/options', getSelectableOptions);
 
 // Verify OTP and activate user
 router.post('/verify-otp', maleUserController.verifyOtp);
