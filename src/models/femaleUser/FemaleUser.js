@@ -13,7 +13,7 @@ const femaleUserSchema = new mongoose.Schema({
   age: { type: Number },
   gender: { type: String, enum: ['female', 'male'] },
   bio: { type: String },
-  images: [String], // Array for 3 uploaded images
+  images: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleImage' }],
   videoUrl: String, // URL for the 10-second live video
   interests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Interest' }],
   languages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Language' }],

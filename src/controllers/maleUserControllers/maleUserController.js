@@ -1,5 +1,6 @@
 const MaleUser = require('../../models/maleUser/MaleUser');
 const Image = require('../../models/maleUser/Image');
+const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const Package = require('../../models/maleUser/Package');
 const generateToken = require('../../utils/generateToken');  // Utility function to generate JWT token
 const generateReferralCode = require('../../utils/generateReferralCode');
@@ -273,5 +274,66 @@ exports.getUserProfile = async (req, res) => {
     res.json({ success: true, data: user });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// List/browse female users for male users (paginated)
+exports.listFemaleUsers = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    const filter = { status: 'active', reviewStatus: 'approved' };
+
+    const [items, total] = await Promise.all([
+      FemaleUser.find(filter)
+        .select('name age bio images')
+        .populate({ path: 'images', select: 'imageUrl', options: { limit: 1 } })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      FemaleUser.countDocuments(filter)
+    ]);
+
+    const data = items.map((u) => ({
+      _id: u._id,
+      name: u.name,
+      age: u.age,
+      bio: u.bio,
+      avatarUrl: Array.isArray(u.images) && u.images[0] ? u.images[0].imageUrl : null
+    }));
+
+    return res.json({ success: true, page, limit, total, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete an image by image id (owned by the authenticated male user)
+exports.deleteImage = async (req, res) => {
+  try {
+    const { imageId } = req.params;
+    const imageDoc = await Image.findById(imageId);
+    if (!imageDoc) {
+      return res.status(404).json({ success: false, message: 'Image not found' });
+    }
+    if (String(imageDoc.maleUserId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this image' });
+    }
+    await Image.deleteOne({ _id: imageDoc._id });
+
+    // Remove url from MaleUser.images array if it exists there
+    try {
+      const user = await MaleUser.findById(req.user.id);
+      if (Array.isArray(user.images)) {
+        user.images = user.images.filter((url) => url !== imageDoc.imageUrl);
+        await user.save();
+      }
+    } catch (_) {}
+
+    return res.json({ success: true, message: 'Image deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };

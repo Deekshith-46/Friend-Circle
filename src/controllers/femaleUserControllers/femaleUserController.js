@@ -219,14 +219,13 @@ exports.verifyOtp = async (req, res) => {
 
 // Add Extra Information (Name, Age, Gender, etc.)
 exports.addUserInfo = async (req, res) => {
-  const { name, age, gender, bio, images, videoUrl, interests, languages } = req.body;
+  const { name, age, gender, bio, videoUrl, interests, languages } = req.body; // images is managed via upload endpoint
   try {
     const user = await FemaleUser.findById(req.user.id);
     user.name = name;
     user.age = age;
     user.gender = gender;
     user.bio = bio;
-    user.images = images;
     user.videoUrl = videoUrl;
     user.interests = interests;
     user.languages = languages;
@@ -240,7 +239,7 @@ exports.addUserInfo = async (req, res) => {
 // Get Female User Profile
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await FemaleUser.findById(req.user.id).select('-otp'); // Exclude OTP
+    const user = await FemaleUser.findById(req.user.id).select('-otp').populate('images'); // Exclude OTP and populate images
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -252,14 +251,13 @@ exports.getUserProfile = async (req, res) => {
 
 // Update Female User Info
 exports.updateUserInfo = async (req, res) => {
-  const { name, age, gender, bio, images, videoUrl, interests, languages } = req.body;
+  const { name, age, gender, bio, videoUrl, interests, languages } = req.body; // images is managed via upload endpoint
   try {
     const user = await FemaleUser.findById(req.user.id);
     if (name) user.name = name;
     if (age) user.age = age;
     if (gender) user.gender = gender;
     if (bio) user.bio = bio;
-    if (images) user.images = images;
     if (videoUrl) user.videoUrl = videoUrl;
     if (interests) user.interests = interests;
     if (languages) user.languages = languages;
@@ -287,18 +285,27 @@ exports.uploadImage = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No images uploaded.' });
     }
 
-    const uploadedUrls = req.files.map((f) => f.path);
+    const user = await FemaleUser.findById(req.user.id).populate('images');
 
-    for (const url of uploadedUrls) {
-      const newImage = new FemaleImage({ femaleUserId: req.user.id, imageUrl: url });
-      await newImage.save();
+    const currentCount = Array.isArray(user.images) ? user.images.length : 0;
+    const remainingSlots = Math.max(0, 5 - currentCount);
+    if (remainingSlots === 0) {
+      return res.status(400).json({ success: false, message: 'Image limit reached. Maximum 5 images allowed.' });
     }
 
-    const user = await FemaleUser.findById(req.user.id);
-    user.images = Array.isArray(user.images) ? [...user.images, ...uploadedUrls] : uploadedUrls;
+    const filesToProcess = req.files.slice(0, remainingSlots);
+    const skipped = req.files.length - filesToProcess.length;
+
+    const createdImageIds = [];
+    for (const f of filesToProcess) {
+      const newImage = await FemaleImage.create({ femaleUserId: req.user.id, imageUrl: f.path });
+      createdImageIds.push(newImage._id);
+    }
+
+    user.images = [...(user.images || []).map(img => img._id ? img._id : img), ...createdImageIds];
     await user.save();
 
-    res.json({ success: true, message: 'Images uploaded successfully.', urls: uploadedUrls });
+    return res.json({ success: true, message: 'Images uploaded successfully.', added: createdImageIds.length, skipped });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -344,5 +351,28 @@ exports.uploadVideo = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete an image by image id (owned by the authenticated female user)
+exports.deleteImage = async (req, res) => {
+  try {
+    const { imageId } = req.params;
+
+    const imageDoc = await FemaleImage.findById(imageId);
+    if (!imageDoc) {
+      return res.status(404).json({ success: false, message: 'Image not found' });
+    }
+    if (String(imageDoc.femaleUserId) !== String(req.user.id)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this image' });
+    }
+
+    // Remove ref from user.images and delete image document
+    await FemaleUser.updateOne({ _id: req.user.id }, { $pull: { images: imageDoc._id } });
+    await FemaleImage.deleteOne({ _id: imageDoc._id });
+
+    return res.json({ success: true, message: 'Image deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };

@@ -48,8 +48,14 @@ router.post('/verify-otp', maleUserController.verifyOtp);
 // Get user profile
 router.get('/me', auth, maleUserController.getUserProfile);
 
+// Browse female users (paginated)
+router.get('/browse-females', auth, maleUserController.listFemaleUsers);
+
 // Upload Images via form-data (field: images)
 router.post('/upload-image', auth, parser.array('images', 5), maleUserController.uploadImage);
+
+// Delete image by id
+router.delete('/images/:imageId', auth, maleUserController.deleteImage);
 
 // Follow Female User
 router.post('/follow', auth, followingFollowersController.followUser);

@@ -62,6 +62,9 @@ router.post('/upload-image', auth, parser.array('images', 5), femaleUserControll
 // Upload Video via form-data (field: video)
 router.post('/upload-video', auth, videoParser.single('video'), femaleUserController.uploadVideo);
 
+// Delete image by id
+router.delete('/images/:imageId', auth, femaleUserController.deleteImage);
+
 // Follow Male User
 router.post('/follow', auth, followingFollowersController.followUser);
 
