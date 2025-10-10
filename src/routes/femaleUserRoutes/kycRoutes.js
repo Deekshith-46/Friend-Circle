@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const kycController = require('../../controllers/femaleUserControllers/kycController');
 const auth = require('../../middlewares/authMiddleware');
-const parser = require('../../config/multer');
+const { parser } = require('../../config/multer');
 
 // Submit KYC (accepts JSON or multipart/form-data without files)
 router.post('/submit-kyc', auth, parser.none(), kycController.submitKYC);

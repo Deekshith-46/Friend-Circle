@@ -4,7 +4,7 @@ const maleUserController = require('../../controllers/maleUserControllers/maleUs
 const followingFollowersController = require('../../controllers/maleUserControllers/followingFollowersController');
 const blockListController = require('../../controllers/maleUserControllers/blockListController');
 const auth = require('../../middlewares/authMiddleware');
-const parser = require('../../config/multer');
+const { parser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
 
 // Register Male User

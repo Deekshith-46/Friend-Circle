@@ -15,8 +15,38 @@ exports.registerUser = async (req, res) => {
   try {
     // Check if the email is already registered
     const existingUser = await MaleUser.findOne({ email });
+    
     if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Email already registered.' });
+      // If user exists but is not verified, allow re-registration
+      if (!existingUser.isVerified || !existingUser.isActive) {
+        // Update existing user with new OTP and referral info
+        existingUser.otp = otp;
+        existingUser.isVerified = false;
+        existingUser.isActive = false;
+        
+        // Handle referral code if provided
+        if (referralCode) {
+          const referredByUser = await MaleUser.findOne({ referralCode });
+          if (referredByUser) {
+            existingUser.referredBy = referredByUser._id;
+          }
+        }
+        
+        await existingUser.save();
+        await sendOtp(email, otp);
+        
+        return res.status(201).json({
+          success: true,
+          message: 'OTP sent to your email for verification.',
+          referralCode: existingUser.referralCode
+        });
+      } else {
+        // User is already verified and active
+        return res.status(400).json({ 
+          success: false, 
+          message: 'User already exists and is verified. Please login instead.' 
+        });
+      }
     }
 
     // Prepare referral linkage if provided and valid
@@ -32,16 +62,26 @@ exports.registerUser = async (req, res) => {
     }
 
     // Create a new MaleUser
-    const newUser = new MaleUser({ firstName, lastName, email, password, otp, referredBy: referredByUser?._id, referralCode: myReferral });
+    const newUser = new MaleUser({ 
+      firstName, 
+      lastName, 
+      email, 
+      password, 
+      otp, 
+      referredBy: referredByUser?._id, 
+      referralCode: myReferral,
+      isVerified: false,
+      isActive: false
+    });
     await newUser.save();
 
     // Send OTP via email (using a utility function like SendGrid or any mail service)
     await sendOtp(email, otp);  // Assumed that sendOtp function handles OTP sending
 
-      res.status(201).json({
+    res.status(201).json({
       success: true,
-        message: 'OTP sent to your email.',
-        referralCode: newUser.referralCode
+      message: 'OTP sent to your email.',
+      referralCode: newUser.referralCode
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -128,6 +168,7 @@ exports.verifyOtp = async (req, res) => {
 
     if (user) {
       user.isVerified = true;  // Mark the user as verified
+      user.isActive = true;    // Mark the user as active
       user.otp = undefined;  // Clear OTP after verification
 
       // Award referral bonus once after verification

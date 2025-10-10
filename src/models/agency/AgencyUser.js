@@ -10,6 +10,7 @@ const agencyUserSchema = new mongoose.Schema({
 		}
 	},
 	isVerified: { type: Boolean, default: false },
+	isActive: { type: Boolean, default: false }, // Only true after OTP verification
 	firstName: { type: String },
 	lastName: { type: String },
 	aadharNumber: { type: String },

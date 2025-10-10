@@ -20,6 +20,7 @@ const femaleUserSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   reviewStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   isVerified: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: false }, // Only true after OTP verification
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }],
 
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },

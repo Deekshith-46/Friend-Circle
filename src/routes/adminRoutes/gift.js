@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middlewares/authMiddleware');
 const { dynamicPermissionCheck } = require('../../middlewares/permissionMiddleware');
-const parser = require('../../config/multer'); 
+const { parser } = require('../../config/multer'); 
 const controller = require('../../controllers/adminControllers/giftController');
 
 // Create Gift

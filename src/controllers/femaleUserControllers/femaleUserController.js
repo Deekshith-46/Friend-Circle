@@ -9,6 +9,50 @@ exports.registerUser = async (req, res) => {
   const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
 
   try {
+    // Check if user already exists
+    const existingUser = await FemaleUser.findOne({ $or: [{ email }, { mobileNumber }] });
+    
+    if (existingUser) {
+      // If user exists but is not verified, allow re-registration
+      if (!existingUser.isVerified || !existingUser.isActive) {
+        // Update existing user with new OTP and referral info
+        existingUser.otp = otp;
+        existingUser.isVerified = false;
+        existingUser.isActive = false;
+        
+        // Handle referral code if provided
+        if (referralCode) {
+          const FemaleModel = require('../../models/femaleUser/FemaleUser');
+          const AgencyModel = require('../../models/agency/AgencyUser');
+          const referredByFemale = await FemaleModel.findOne({ referralCode });
+          if (referredByFemale) {
+            existingUser.referredByFemale = referredByFemale._id;
+            existingUser.referredByAgency = null;
+          } else {
+            const referredByAgency = await AgencyModel.findOne({ referralCode });
+            if (referredByAgency) {
+              existingUser.referredByAgency = referredByAgency._id;
+              existingUser.referredByFemale = null;
+            }
+          }
+        }
+        
+        await existingUser.save();
+        await sendOtp(email, otp);
+        
+        return res.status(201).json({
+          success: true,
+          message: "OTP sent to your email for verification."
+        });
+      } else {
+        // User is already verified and active
+        return res.status(400).json({ 
+          success: false, 
+          message: "User already exists and is verified. Please login instead." 
+        });
+      }
+    }
+
     // Link referral if provided: can be a FemaleUser or AgencyUser code
     let referredByFemale = null;
     let referredByAgency = null;
@@ -28,7 +72,16 @@ exports.registerUser = async (req, res) => {
       myReferral = generateReferralCode();
     }
 
-    const newUser = new FemaleUser({ email, mobileNumber, otp, referralCode: myReferral, referredByFemale: referredByFemale?._id, referredByAgency: referredByAgency?._id });
+    const newUser = new FemaleUser({ 
+      email, 
+      mobileNumber, 
+      otp, 
+      referralCode: myReferral, 
+      referredByFemale: referredByFemale?._id, 
+      referredByAgency: referredByAgency?._id,
+      isVerified: false,
+      isActive: false
+    });
     await newUser.save();
     await sendOtp(email, otp); // Send OTP via SendGrid
 
@@ -127,6 +180,7 @@ exports.verifyOtp = async (req, res) => {
     if (user) {
       const token = generateToken(user._id);
       user.isVerified = true; // Mark the user as verified
+      user.isActive = true;   // Mark the user as active
       user.otp = undefined;   // Optionally clear OTP after verification
 
       // Award referral bonus once after verification
@@ -245,6 +299,35 @@ exports.uploadImage = async (req, res) => {
     await user.save();
 
     res.json({ success: true, message: 'Images uploaded successfully.', urls: uploadedUrls });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Upload Video (multipart form-data)
+exports.uploadVideo = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No video uploaded.' });
+    }
+
+    const videoUrl = req.file.path;
+    const user = await FemaleUser.findById(req.user.id);
+    
+    // Delete old video if exists
+    if (user.videoUrl) {
+      // You might want to delete the old video from Cloudinary here
+      // For now, we'll just replace the URL
+    }
+    
+    user.videoUrl = videoUrl;
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Video uploaded successfully.', 
+      videoUrl: videoUrl 
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

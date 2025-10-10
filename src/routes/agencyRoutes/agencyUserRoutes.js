@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const agencyUserController = require('../../controllers/agencyControllers/agencyUserController');
 const auth = require('../../middlewares/authMiddleware');
-const parser = require('../../config/multer');
+const { parser } = require('../../config/multer');
 
 // Registration and OTP
 router.post('/register', agencyUserController.agencyRegister);

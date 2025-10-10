@@ -23,6 +23,7 @@ const maleUserSchema = new mongoose.Schema({
   walletBalance: { type: Number, default: 0 },
   coinBalance: { type: Number, default: 0 },
   isVerified: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: false }, // Only true after OTP verification
   otp: { type: Number }, // OTP for verification
   // Referral system
   referralCode: { type: String, unique: true, sparse: true }, // 8-char alphanumeric

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../../middlewares/authMiddleware');
 const { dynamicPermissionCheck } = require('../../middlewares/permissionMiddleware');
-const parser = require('../../config/multer'); // for image upload
+const { parser } = require('../../config/multer'); // for image upload
 const controller = require('../../controllers/adminControllers/interestController');
 
 // Create Interest

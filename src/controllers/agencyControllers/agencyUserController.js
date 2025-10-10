@@ -9,8 +9,37 @@ exports.agencyRegister = async (req, res) => {
 	const otp = Math.floor(1000 + Math.random() * 9000);
 	try {
 		const existing = await AgencyUser.findOne({ $or: [{ email }, { mobileNumber }] });
-		if (existing) return res.status(400).json({ success: false, message: 'Email or mobile already registered.' });
-		const agency = new AgencyUser({ email, mobileNumber, otp });
+		
+		if (existing) {
+			// If agency exists but is not verified, allow re-registration
+			if (!existing.isVerified || !existing.isActive) {
+				// Update existing agency with new OTP
+				existing.otp = otp;
+				existing.isVerified = false;
+				existing.isActive = false;
+				await existing.save();
+				await sendOtp(email, otp);
+				
+				return res.status(201).json({ 
+					success: true, 
+					message: 'OTP sent to your email for verification.' 
+				});
+			} else {
+				// Agency is already verified and active
+				return res.status(400).json({ 
+					success: false, 
+					message: 'Agency already exists and is verified. Please login instead.' 
+				});
+			}
+		}
+		
+		const agency = new AgencyUser({ 
+			email, 
+			mobileNumber, 
+			otp,
+			isVerified: false,
+			isActive: false
+		});
 		await agency.save();
 		await sendOtp(email, otp);
 		return res.status(201).json({ success: true, message: 'OTP sent to your email.' });
@@ -26,6 +55,7 @@ exports.agencyVerifyOtp = async (req, res) => {
 		const agency = await AgencyUser.findOne({ otp, isVerified: false });
 		if (!agency) return res.status(400).json({ success: false, message: 'Invalid OTP' });
 		agency.isVerified = true;
+		agency.isActive = true;
 		agency.otp = undefined;
 		agency.status = 'active';
 		await agency.save();

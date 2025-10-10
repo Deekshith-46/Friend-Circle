@@ -7,7 +7,7 @@ const earningsController = require('../../controllers/femaleUserControllers/earn
 const kycController = require('../../controllers/femaleUserControllers/kycController');
 const blockListController = require('../../controllers/femaleUserControllers/blockListController');
 const auth = require('../../middlewares/authMiddleware');
-const parser = require('../../config/multer');
+const { parser, videoParser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
 
 // Registration and OTP
@@ -52,6 +52,9 @@ router.put('/update', auth, femaleUserController.addUserInfo);
 
 // Upload Images via form-data (field: images)
 router.post('/upload-image', auth, parser.array('images', 5), femaleUserController.uploadImage);
+
+// Upload Video via form-data (field: video)
+router.post('/upload-video', auth, videoParser.single('video'), femaleUserController.uploadVideo);
 
 // Follow Male User
 router.post('/follow', auth, followingFollowersController.followUser);
