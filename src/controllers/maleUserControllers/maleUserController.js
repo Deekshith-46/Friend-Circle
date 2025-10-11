@@ -39,7 +39,8 @@ exports.registerUser = async (req, res) => {
         return res.status(201).json({
           success: true,
           message: 'OTP sent to your email for verification.',
-          referralCode: existingUser.referralCode
+          referralCode: existingUser.referralCode,
+          otp: otp // For testing purposes
         });
       } else {
         // User is already verified and active
@@ -82,7 +83,8 @@ exports.registerUser = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'OTP sent to your email.',
-      referralCode: newUser.referralCode
+      referralCode: newUser.referralCode,
+      otp: otp // For testing purposes
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -119,7 +121,8 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'OTP sent to your email for login verification.'
+      message: 'OTP sent to your email for login verification.',
+      otp: otp // For testing purposes
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

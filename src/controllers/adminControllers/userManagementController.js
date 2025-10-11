@@ -195,4 +195,36 @@ exports.listTransactions = async (req, res) => {
     }
 };
 
+// Delete user by admin (for testing purposes)
+exports.deleteUser = async (req, res) => {
+    try {
+        const { userType, userId } = req.params; // userType: 'male' | 'female' | 'agency'
+        if (!['male', 'female', 'agency'].includes(userType)) {
+            return res.status(400).json({ success: false, message: 'Invalid userType' });
+        }
+
+        let Model;
+        if (userType === 'male') {
+            Model = MaleUser;
+        } else if (userType === 'female') {
+            Model = FemaleUser;
+        } else {
+            Model = AgencyUser;
+        }
+
+        const user = await Model.findByIdAndDelete(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        return res.json({ 
+            success: true, 
+            message: `${userType} user deleted successfully`,
+            deletedUser: { id: user._id, email: user.email }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 

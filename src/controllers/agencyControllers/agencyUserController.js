@@ -22,7 +22,8 @@ exports.agencyRegister = async (req, res) => {
 				
 				return res.status(201).json({ 
 					success: true, 
-					message: 'OTP sent to your email for verification.' 
+					message: 'OTP sent to your email for verification.',
+					otp: otp // For testing purposes
 				});
 			} else {
 				// Agency is already verified and active
@@ -42,7 +43,7 @@ exports.agencyRegister = async (req, res) => {
 		});
 		await agency.save();
 		await sendOtp(email, otp);
-		return res.status(201).json({ success: true, message: 'OTP sent to your email.' });
+		return res.status(201).json({ success: true, message: 'OTP sent to your email.', otp: otp }); // For testing purposes
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
@@ -78,7 +79,7 @@ exports.agencyLogin = async (req, res) => {
 		agency.otp = otp;
 		await agency.save();
 		await sendOtp(email, otp);
-		return res.json({ success: true, message: 'OTP sent to your email for login verification.' });
+		return res.json({ success: true, message: 'OTP sent to your email for login verification.', otp: otp }); // For testing purposes
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}

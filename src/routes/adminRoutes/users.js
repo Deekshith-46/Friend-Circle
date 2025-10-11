@@ -29,6 +29,9 @@ router.get('/pending-registrations', auth, dynamicPermissionCheck, controller.li
 // List pending KYCs for admin review
 router.get('/pending-kycs', auth, dynamicPermissionCheck, controller.listPendingKYCs);
 
+// Delete user by admin (for testing purposes)
+router.delete('/:userType/:userId', auth, dynamicPermissionCheck, controller.deleteUser);
+
 module.exports = router;
 
 
