@@ -5,6 +5,7 @@ const FemaleImage = require('../../models/femaleUser/Image');
 
 // Update user interests
 exports.updateInterests = async (req, res) => {
+  try {
     const { interestIds } = req.body;
     const userId = req.user._id;
 
