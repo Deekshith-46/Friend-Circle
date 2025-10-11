@@ -3,6 +3,81 @@ const generateToken = require('../../utils/generateToken');
 const sendOtp = require('../../utils/sendOtp');
 const FemaleImage = require('../../models/femaleUser/Image');
 
+// Update user interests
+exports.updateInterests = async (req, res) => {
+    const { interestIds } = req.body;
+    const userId = req.user._id;
+
+    if (!interestIds || !Array.isArray(interestIds)) {
+      return res.status(400).json({
+        success: false,
+        message: "Interest IDs array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { interests: interestIds },
+      { new: true }
+    ).populate('interests', 'title');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Interests updated successfully",
+      data: {
+        interests: user.interests
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user languages
+exports.updateLanguages = async (req, res) => {
+  try {
+    const { languageIds } = req.body;
+    const userId = req.user._id;
+
+    if (!languageIds || !Array.isArray(languageIds)) {
+      return res.status(400).json({
+        success: false,
+        message: "Language IDs array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { languages: languageIds },
+      { new: true }
+    ).populate('languages', 'title');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Languages updated successfully",
+      data: {
+        languages: user.languages
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // User Registration (Email and Mobile Number)
 exports.registerUser = async (req, res) => {
   const { email, mobileNumber, referralCode } = req.body;

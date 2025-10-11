@@ -6,8 +6,12 @@ const blockListController = require('../../controllers/maleUserControllers/block
 const auth = require('../../middlewares/authMiddleware');
 const { parser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
-const { getSelectableOptions } = require('../../controllers/common/optionsController');
+const { getInterests } = require('../../controllers/common/interestController');
+const { getLanguages } = require('../../controllers/common/languageController');
 
+// Public routes for interests and languages
+router.get('/interests', getInterests);
+router.get('/languages', getLanguages);
 // Register Male User
 router.post('/register', maleUserController.registerUser);
 
@@ -39,14 +43,17 @@ router.get('/me/transactions', auth, async (req, res) => {
 // Verify Login OTP
 router.post('/verify-login-otp', maleUserController.verifyLoginOtp);
 
-// Public selectable options for male users
-router.get('/options', getSelectableOptions);
-
 // Verify OTP and activate user
 router.post('/verify-otp', maleUserController.verifyOtp);
 
 // Get user profile
 router.get('/me', auth, maleUserController.getUserProfile);
+
+// Update user interests
+router.put('/interests', auth, maleUserController.updateInterests);
+
+// Update user languages
+router.put('/languages', auth, maleUserController.updateLanguages);
 
 // Browse female users (paginated)
 router.get('/browse-females', auth, maleUserController.listFemaleUsers);

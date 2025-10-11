@@ -9,10 +9,12 @@ const kycController = require('../../controllers/femaleUserControllers/kycContro
 const blockListController = require('../../controllers/femaleUserControllers/blockListController');
 const { parser, videoParser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
-const { getSelectableOptions } = require('../../controllers/common/optionsController');
+const { getInterests } = require('../../controllers/common/interestController');
+const { getLanguages } = require('../../controllers/common/languageController');
 
-// Public selectable options for female users
-router.get('/options', getSelectableOptions);
+// Public routes for interests and languages
+router.get('/interests', getInterests);
+router.get('/languages', getLanguages);
 
  
 
@@ -55,6 +57,12 @@ router.post('/add-info', auth, femaleUserController.addUserInfo);
 router.get('/me', auth, femaleUserController.getUserProfile);  // New route to get profile
 // Update User Details (Name, Age, Gender, etc.)
 router.put('/update', auth, femaleUserController.addUserInfo);
+
+// Update user interests
+router.put('/interests', auth, femaleUserController.updateInterests);
+
+// Update user languages
+router.put('/languages', auth, femaleUserController.updateLanguages);
 
 // Upload Images via form-data (field: images)
 router.post('/upload-image', auth, parser.array('images', 5), femaleUserController.uploadImage);
