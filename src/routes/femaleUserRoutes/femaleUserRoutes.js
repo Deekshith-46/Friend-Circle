@@ -51,6 +51,9 @@ router.post('/verify-login-otp', femaleUserController.verifyLoginOtp);
 
 router.post('/verify-otp', femaleUserController.verifyOtp);
 
+// Complete Profile after OTP Verification (REQUIRED before login)
+router.post('/complete-profile', auth, femaleUserController.completeProfile);
+
 // Add Extra Info after OTP Verification
 router.post('/add-info', auth, femaleUserController.addUserInfo);
 // Get Female User Profile

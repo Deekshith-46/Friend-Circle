@@ -4,6 +4,7 @@ const auth = require('../../middlewares/authMiddleware');
 const { dynamicPermissionCheck } = require('../../middlewares/permissionMiddleware');
 const { parser } = require('../../config/multer');
 const controller = require('../../controllers/adminControllers/userManagementController');
+const femaleUserController = require('../../controllers/femaleUserControllers/femaleUserController');
 
 // List users (all/male/female) => query ?type=male|female
 router.get('/', auth, dynamicPermissionCheck, controller.listUsers);
@@ -31,6 +32,9 @@ router.get('/pending-kycs', auth, dynamicPermissionCheck, controller.listPending
 
 // Delete user by admin (for testing purposes)
 router.delete('/:userType/:userId', auth, dynamicPermissionCheck, controller.deleteUser);
+
+// Cleanup incomplete female profiles (older than 7 days)
+router.post('/cleanup-incomplete-profiles', auth, dynamicPermissionCheck, femaleUserController.cleanupIncompleteProfiles);
 
 module.exports = router;
 

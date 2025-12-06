@@ -89,30 +89,14 @@ exports.registerUser = async (req, res) => {
     const existingUser = await FemaleUser.findOne({ $or: [{ email }, { mobileNumber }] });
     
     if (existingUser) {
-      // If user exists but is not verified, allow re-registration
-      if (!existingUser.isVerified || !existingUser.isActive) {
-        // Update existing user with new OTP and referral info
+      // If user exists but profile is not completed, allow re-registration
+      if (!existingUser.profileCompleted) {
+        // Delete the incomplete profile and allow fresh registration
+        await FemaleUser.findByIdAndDelete(existingUser._id);
+        // Continue with new registration below
+      } else if (!existingUser.isVerified || !existingUser.isActive) {
+        // Profile is complete but awaiting verification - resend OTP
         existingUser.otp = otp;
-        existingUser.isVerified = false;
-        existingUser.isActive = false;
-        
-        // Handle referral code if provided
-        if (referralCode) {
-          const FemaleModel = require('../../models/femaleUser/FemaleUser');
-          const AgencyModel = require('../../models/agency/AgencyUser');
-          const referredByFemale = await FemaleModel.findOne({ referralCode });
-          if (referredByFemale) {
-            existingUser.referredByFemale = referredByFemale._id;
-            existingUser.referredByAgency = null;
-          } else {
-            const referredByAgency = await AgencyModel.findOne({ referralCode });
-            if (referredByAgency) {
-              existingUser.referredByAgency = referredByAgency._id;
-              existingUser.referredByFemale = null;
-            }
-          }
-        }
-        
         await existingUser.save();
         await sendOtp(email, otp);
         
@@ -122,12 +106,20 @@ exports.registerUser = async (req, res) => {
           otp: otp // For testing purposes
         });
       } else {
-        // User is already verified and active
+        // User is already verified and active with complete profile
         return res.status(400).json({ 
           success: false, 
           message: "User already exists and is verified. Please login instead." 
         });
       }
+    }
+
+    // Create a temporary user entry with just email, mobile, and OTP
+    // Profile details will be added after OTP verification
+    const generateReferralCode = require('../../utils/generateReferralCode');
+    let myReferral = generateReferralCode();
+    while (await FemaleUser.findOne({ referralCode: myReferral })) {
+      myReferral = generateReferralCode();
     }
 
     // Link referral if provided: can be a FemaleUser or AgencyUser code
@@ -142,13 +134,6 @@ exports.registerUser = async (req, res) => {
       }
     }
 
-    // Ensure unique referral code for this user
-    const generateReferralCode = require('../../utils/generateReferralCode');
-    let myReferral = generateReferralCode();
-    while (await FemaleUser.findOne({ referralCode: myReferral })) {
-      myReferral = generateReferralCode();
-    }
-
     const newUser = new FemaleUser({ 
       email, 
       mobileNumber, 
@@ -157,7 +142,8 @@ exports.registerUser = async (req, res) => {
       referredByFemale: referredByFemale?._id, 
       referredByAgency: referredByAgency?._id,
       isVerified: false,
-      isActive: false
+      isActive: false,
+      profileCompleted: false // Profile not completed yet
     });
     await newUser.save();
     await sendOtp(email, otp); // Send OTP via SendGrid
@@ -183,9 +169,20 @@ exports.loginUser = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
+    // Check if user has completed profile
+    if (!user.profileCompleted) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Please complete your profile first before logging in.' 
+      });
+    }
+
     // Registration review gate
     if (user.reviewStatus !== 'approved') {
-      return res.status(403).json({ success: false, message: 'Your registration is under review or rejected.' });
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Your registration is under review or rejected. Please wait for admin approval.' 
+      });
     }
 
     // Check if user is verified
@@ -260,34 +257,17 @@ exports.verifyOtp = async (req, res) => {
       const token = generateToken(user._id);
       user.isVerified = true; // Mark the user as verified
       user.isActive = true;   // Mark the user as active
-      user.otp = undefined;   // Optionally clear OTP after verification
-
-      // Award referral bonus once after verification
-      if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
-        const Transaction = require('../../models/common/Transaction');
-        const FEMALE_BONUS = 15; // coins to both
-
-        if (user.referredByFemale) {
-          const FemaleModel = require('../../models/femaleUser/FemaleUser');
-          const referrer = await FemaleModel.findById(user.referredByFemale);
-          if (referrer) {
-            referrer.coinBalance = (referrer.coinBalance || 0) + FEMALE_BONUS;
-            user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
-            await referrer.save();
-            await Transaction.create({ userType: 'female', userId: referrer._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral bonus for inviting ${user.email}`, balanceAfter: referrer.coinBalance, createdBy: referrer._id });
-            await Transaction.create({ userType: 'female', userId: user._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral signup bonus using referral code`, balanceAfter: user.coinBalance, createdBy: user._id });
-            user.referralBonusAwarded = true;
-          }
-        } else if (user.referredByAgency) {
-          // Agency refers female; only female gets bonus or both? Requirement says agency can refer to females. We'll credit the female only.
-          user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
-          await Transaction.create({ userType: 'female', userId: user._id, operationType: 'coin', action: 'credit', amount: FEMALE_BONUS, message: `Referral signup bonus via agency`, balanceAfter: user.coinBalance, createdBy: user._id });
-          user.referralBonusAwarded = true;
-        }
-      }
+      user.otp = undefined;   // Clear OTP after verification
+      // NOTE: profileCompleted remains false until user completes profile
+      // Referral bonus will be awarded after profile completion
 
       await user.save();
-      res.json({ success: true, token });
+      res.json({ 
+        success: true, 
+        token,
+        message: "OTP verified successfully. Please complete your profile to continue.",
+        profileCompleted: false
+      });
     } else {
       res.status(400).json({ success: false, message: "Invalid OTP" });
     }
@@ -310,6 +290,125 @@ exports.addUserInfo = async (req, res) => {
     user.languages = languages;
     await user.save();
     res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Complete Profile - Must be called after OTP verification
+// This marks the profile as complete and ready for admin review
+exports.completeProfile = async (req, res) => {
+  const { name, age, gender, bio, interests, languages } = req.body;
+  
+  try {
+    const user = await FemaleUser.findById(req.user.id).populate('images');
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Check if profile is already completed
+    if (user.profileCompleted) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Profile is already completed and under review.' 
+      });
+    }
+
+    // Validate required fields for profile completion
+    if (!name || !age || !gender || !bio) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Name, age, gender, and bio are required to complete profile.' 
+      });
+    }
+
+    // Check if at least one image is uploaded
+    if (!user.images || user.images.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'At least one image is required to complete profile.' 
+      });
+    }
+
+    // Check if video is uploaded
+    if (!user.videoUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'A video is required to complete profile.' 
+      });
+    }
+
+    // Update user profile
+    user.name = name;
+    user.age = age;
+    user.gender = gender;
+    user.bio = bio;
+    if (interests) user.interests = interests;
+    if (languages) user.languages = languages;
+    user.profileCompleted = true;
+    user.reviewStatus = 'pending'; // Set review status to pending for admin approval
+
+    // Award referral bonus after profile completion
+    if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
+      const Transaction = require('../../models/common/Transaction');
+      const FEMALE_BONUS = 15; // coins to both
+
+      if (user.referredByFemale) {
+        const FemaleModel = require('../../models/femaleUser/FemaleUser');
+        const referrer = await FemaleModel.findById(user.referredByFemale);
+        if (referrer) {
+          referrer.coinBalance = (referrer.coinBalance || 0) + FEMALE_BONUS;
+          user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+          await referrer.save();
+          await Transaction.create({ 
+            userType: 'female', 
+            userId: referrer._id, 
+            operationType: 'coin', 
+            action: 'credit', 
+            amount: FEMALE_BONUS, 
+            message: `Referral bonus for inviting ${user.email}`, 
+            balanceAfter: referrer.coinBalance, 
+            createdBy: referrer._id 
+          });
+          await Transaction.create({ 
+            userType: 'female', 
+            userId: user._id, 
+            operationType: 'coin', 
+            action: 'credit', 
+            amount: FEMALE_BONUS, 
+            message: `Referral signup bonus using referral code`, 
+            balanceAfter: user.coinBalance, 
+            createdBy: user._id 
+          });
+          user.referralBonusAwarded = true;
+        }
+      } else if (user.referredByAgency) {
+        user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+        await Transaction.create({ 
+          userType: 'female', 
+          userId: user._id, 
+          operationType: 'coin', 
+          action: 'credit', 
+          amount: FEMALE_BONUS, 
+          message: `Referral signup bonus via agency`, 
+          balanceAfter: user.coinBalance, 
+          createdBy: user._id 
+        });
+        user.referralBonusAwarded = true;
+      }
+    }
+
+    await user.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Profile completed successfully! Your account is now pending admin approval.',
+      data: {
+        profileCompleted: true,
+        reviewStatus: 'pending'
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -451,6 +550,29 @@ exports.deleteImage = async (req, res) => {
     await FemaleImage.deleteOne({ _id: imageDoc._id });
 
     return res.json({ success: true, message: 'Image deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Cleanup incomplete profiles (can be run as a cron job or manually)
+// Deletes profiles that are not completed within a specified time period
+exports.cleanupIncompleteProfiles = async (req, res) => {
+  try {
+    // Delete profiles that are not completed and older than 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const result = await FemaleUser.deleteMany({
+      profileCompleted: false,
+      createdAt: { $lt: sevenDaysAgo }
+    });
+
+    return res.json({ 
+      success: true, 
+      message: `Cleaned up ${result.deletedCount} incomplete profile(s)`,
+      deletedCount: result.deletedCount
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
