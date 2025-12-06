@@ -34,6 +34,8 @@ const femaleUserSchema = new mongoose.Schema({
   onlineStatus: { type: Boolean, default: false },
   walletBalance: { type: Number, default: 0 },
   coinBalance: { type: Number, default: 0 },
+  // Call rate system
+  coinsPerSecond: { type: Number, default: 2 }, // Admin-configurable rate for video/audio calls
   // Referral system
   referralCode: { type: String, unique: true, sparse: true },
   referredByFemale: { type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' },

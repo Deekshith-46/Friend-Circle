@@ -12,12 +12,14 @@ const Transaction = require('../../models/common/Transaction');
 const { getInterests } = require('../../controllers/common/interestController');
 const { getLanguages } = require('../../controllers/common/languageController');
 
+// Import the new follow request routes
+const followRequestRoutes = require('./followRequestRoutes');
+
 // Public routes for interests and languages
 router.get('/interests', getInterests);
 router.get('/languages', getLanguages);
 
  
-
 // Registration and OTP
 router.post('/register', femaleUserController.registerUser);
 
@@ -79,6 +81,9 @@ router.delete('/images/:imageId', auth, femaleUserController.deleteImage);
 // Follow Male User
 router.post('/follow', auth, followingFollowersController.followUser);
 
+// Follow Back a Male User (explicitly follow someone who is already following you)
+router.post('/follow-back', auth, followingFollowersController.followBackUser);
+
 // Unfollow Male User
 router.post('/unfollow', auth, followingFollowersController.unfollowUser);
 
@@ -87,6 +92,9 @@ router.get('/following', auth, followingFollowersController.getFemaleFollowingLi
 
 // Get Followers List
 router.get('/followers', auth, followingFollowersController.getFemaleFollowersList);
+
+// Follow Request Management Routes
+router.use('/follow-requests', followRequestRoutes);
 
 // Delete User Account
 router.delete('/delete', auth, femaleUserController.deleteUser);

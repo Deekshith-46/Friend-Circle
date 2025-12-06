@@ -36,6 +36,18 @@ router.delete('/:userType/:userId', auth, dynamicPermissionCheck, controller.del
 // Cleanup incomplete female profiles (older than 7 days)
 router.post('/cleanup-incomplete-profiles', auth, dynamicPermissionCheck, femaleUserController.cleanupIncompleteProfiles);
 
+// Set call rate (coins per second) for female user
+router.post('/set-call-rate', auth, dynamicPermissionCheck, parser.none(), controller.setFemaleCallRate);
+
+// Test endpoint to verify route is working
+router.get('/test-call-rate-route', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Call rate route is registered correctly!',
+    endpoint: 'POST /admin/users/set-call-rate'
+  });
+});
+
 module.exports = router;
 
 

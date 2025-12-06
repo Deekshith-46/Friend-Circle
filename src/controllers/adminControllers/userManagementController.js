@@ -227,4 +227,50 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
+// Set coins per second rate for female user
+exports.setFemaleCallRate = async (req, res) => {
+    try {
+        const { userId, coinsPerSecond } = req.body;
+        
+        if (!userId) {
+            return res.status(400).json({ success: false, message: 'userId is required' });
+        }
+        
+        if (coinsPerSecond === undefined || coinsPerSecond === null) {
+            return res.status(400).json({ success: false, message: 'coinsPerSecond is required' });
+        }
+        
+        const numericRate = Number(coinsPerSecond);
+        if (!Number.isFinite(numericRate) || numericRate < 0) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'coinsPerSecond must be a valid non-negative number' 
+            });
+        }
+        
+        const femaleUser = await FemaleUser.findByIdAndUpdate(
+            userId,
+            { coinsPerSecond: numericRate },
+            { new: true }
+        ).select('name email coinsPerSecond');
+        
+        if (!femaleUser) {
+            return res.status(404).json({ success: false, message: 'Female user not found' });
+        }
+        
+        return res.json({
+            success: true,
+            message: `Call rate updated successfully for ${femaleUser.name || femaleUser.email}`,
+            data: {
+                userId: femaleUser._id,
+                name: femaleUser.name,
+                email: femaleUser.email,
+                coinsPerSecond: femaleUser.coinsPerSecond
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
 

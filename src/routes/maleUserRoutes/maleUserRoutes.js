@@ -3,6 +3,7 @@ const router = express.Router();
 const maleUserController = require('../../controllers/maleUserControllers/maleUserController');
 const followingFollowersController = require('../../controllers/maleUserControllers/followingFollowersController');
 const blockListController = require('../../controllers/maleUserControllers/blockListController');
+const callController = require('../../controllers/maleUserControllers/callController');
 const auth = require('../../middlewares/authMiddleware');
 const { parser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
@@ -64,7 +65,16 @@ router.post('/upload-image', auth, parser.array('images', 5), maleUserController
 // Delete image by id
 router.delete('/images/:imageId', auth, maleUserController.deleteImage);
 
-// Follow Female User
+// Send Follow Request to Female User
+router.post('/follow-request/send', auth, followingFollowersController.sendFollowRequest);
+
+// Cancel Sent Follow Request
+router.post('/follow-request/cancel', auth, followingFollowersController.cancelFollowRequest);
+
+// Get Sent Follow Requests
+router.get('/follow-requests/sent', auth, followingFollowersController.getSentFollowRequests);
+
+// Follow Female User (used internally when a follow request is accepted)
 router.post('/follow', auth, followingFollowersController.followUser);
 
 // Unfollow Female User
@@ -83,6 +93,11 @@ router.post('/buy-coins', auth, maleUserController.buyCoins);
 router.post('/block', auth, blockListController.blockUser);
 router.post('/unblock', auth, blockListController.unblockUser);
 router.get('/block-list', auth, blockListController.getBlockList);
+
+// Call Routes
+router.post('/calls/end', auth, callController.endCall);
+router.get('/calls/history', auth, callController.getCallHistory);
+router.get('/calls/stats', auth, callController.getCallStats);
 
 // Payment Routes are now handled directly in app.js
 

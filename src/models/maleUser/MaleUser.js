@@ -18,6 +18,7 @@ const maleUserSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' }],
   malefollowing: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleFollowing' }],
+  malefollowers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleFollowers' }], // Added missing followers array
   images: [String], // Array of image URLs
   balance: { type: Number, default: 0 }, // Deprecated: legacy combined balance
   walletBalance: { type: Number, default: 0 },
