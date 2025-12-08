@@ -2,6 +2,7 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const MaleUser = require('../../models/maleUser/MaleUser');
 const FollowRequest = require('../../models/common/FollowRequest');
 const MaleFollowing = require('../../models/maleUser/Following');
+const MaleFollowers = require('../../models/maleUser/Followers');
 const FemaleFollowers = require('../../models/femaleUser/Followers');
 const BlockList = require('../../models/femaleUser/BlockList');
 
@@ -66,6 +67,18 @@ exports.acceptFollowRequest = async (req, res) => {
     // Add the new follower reference to the female user's document
     await FemaleUser.findByIdAndUpdate(req.user._id, {
       $addToSet: { followers: newFollower._id }
+    });
+
+    // Add to Male's following list (the female user is now in the male user's following list)
+    const newFollowing = new MaleFollowing({
+      maleUserId,
+      femaleUserId: req.user._id,
+    });
+    await newFollowing.save();
+
+    // Add the new following reference to the male user's document
+    await MaleUser.findByIdAndUpdate(maleUserId, {
+      $addToSet: { malefollowing: newFollowing._id }
     });
 
     res.json({ success: true, message: 'Follow request accepted successfully.' });

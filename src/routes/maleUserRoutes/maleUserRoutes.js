@@ -9,10 +9,15 @@ const { parser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
 const { getInterests } = require('../../controllers/common/interestController');
 const { getLanguages } = require('../../controllers/common/languageController');
+const { preventBlockedInteraction } = require('../../middlewares/blockMiddleware');
+
+// Apply block middleware to all routes except block/unblock
+router.use(preventBlockedInteraction);
 
 // Public routes for interests and languages
 router.get('/interests', getInterests);
 router.get('/languages', getLanguages);
+
 // Register Male User
 router.post('/register', maleUserController.registerUser);
 

@@ -1,9 +1,11 @@
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
+const MaleUser = require('../../models/maleUser/MaleUser');
 const FemaleFollowers = require('../../models/femaleUser/Followers');
 const FemaleFollowing = require('../../models/femaleUser/Following');
 const MaleFollowers = require('../../models/maleUser/Followers');
 const MaleFollowing = require('../../models/maleUser/Following');
 const BlockList = require('../../models/femaleUser/BlockList');
+const MaleBlockList = require('../../models/maleUser/BlockList');
 const FollowRequest = require('../../models/common/FollowRequest');
 
 // Follow a Male User (Explicit follow-back functionality)
@@ -137,46 +139,87 @@ exports.followUser = async (req, res) => {
 // Unfollow a Male User
 exports.unfollowUser = async (req, res) => {
   const { maleUserId } = req.body;
-
+  
   try {
-    const femaleUser = await FemaleUser.findById(req.user._id);
-
-    // Find the following record to get its ID for removing from user document
-    const followingRecord = await FemaleFollowing.findOne({ femaleUserId: req.user._id, maleUserId });
-    
-    if (followingRecord) {
-      // Remove the following reference from the female user's document
-      await FemaleUser.findByIdAndUpdate(req.user._id, {
-        $pull: { femalefollowing: followingRecord._id }
-      });
-
-      // Find the corresponding follower record to get its ID for removing from male user's document
-      const followerRecord = await MaleFollowers.findOne({ maleUserId, femaleUserId: req.user._id });
-      
-      if (followerRecord) {
-        // Remove the follower reference from the male user's document
-        await MaleUser.findByIdAndUpdate(maleUserId, {
-          $pull: { malefollowers: followerRecord._id }
-        });
-        
-        // Remove from Male's followers list
-        await MaleFollowers.findOneAndDelete({ maleUserId, femaleUserId: req.user._id });
-      }
-
-      // Remove from Female's following list
-      await FemaleFollowing.findOneAndDelete({ femaleUserId: req.user._id, maleUserId });
-      
-      // Also clean up any related follow request records (in case female user initiated follow)
-      // Note: This would be rare since typically males initiate follows, but included for completeness
-      await FollowRequest.deleteMany({ 
-        maleUserId: maleUserId, 
-        femaleUserId: req.user._id,
-        status: 'accepted'
+    // Check if we have the required user information
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication required.' 
       });
     }
 
+    // Find and remove ALL possible relationship combinations
+    const results = {
+      femaleFollowing: null,
+      maleFollowers: null,
+      maleFollowing: null,
+      femaleFollowers: null
+    };
+
+    // 1. Female following Male (FemaleFollowing + MaleFollowers)
+    results.femaleFollowing = await FemaleFollowing.findOneAndDelete({ 
+      femaleUserId: req.user._id, 
+      maleUserId 
+    });
+    
+    if (results.femaleFollowing) {
+      // Remove reference from Female user document
+      await FemaleUser.findByIdAndUpdate(req.user._id, {
+        $pull: { femalefollowing: results.femaleFollowing._id }
+      });
+      
+      // Also remove the corresponding MaleFollowers record
+      results.maleFollowers = await MaleFollowers.findOneAndDelete({ 
+        maleUserId, 
+        femaleUserId: req.user._id
+      });
+      
+      if (results.maleFollowers) {
+        // Remove reference from Male user document
+        await MaleUser.findByIdAndUpdate(maleUserId, {
+          $pull: { malefollowers: results.maleFollowers._id }
+        });
+      }
+    }
+
+    // 2. Male following Female (MaleFollowing + FemaleFollowers)
+    results.maleFollowing = await MaleFollowing.findOneAndDelete({ 
+      maleUserId, 
+      femaleUserId: req.user._id
+    });
+    
+    if (results.maleFollowing) {
+      // Remove reference from Male user document
+      await MaleUser.findByIdAndUpdate(maleUserId, {
+        $pull: { malefollowing: results.maleFollowing._id }
+      });
+      
+      // Also remove the corresponding FemaleFollowers record
+      results.femaleFollowers = await FemaleFollowers.findOneAndDelete({ 
+        maleUserId, 
+        femaleUserId: req.user._id
+      });
+      
+      if (results.femaleFollowers) {
+        // Remove reference from Female user document
+        await FemaleUser.findByIdAndUpdate(req.user._id, {
+          $pull: { followers: results.femaleFollowers._id }
+        });
+      }
+    }
+
+    // Also clean up any related follow request records
+    await FollowRequest.deleteMany({ 
+      $or: [
+        { maleUserId, femaleUserId: req.user._id },
+        { maleUserId: req.user._id, femaleUserId: maleUserId }
+      ]
+    });
+
     res.json({ success: true, message: 'Unfollowed male user successfully.' });
   } catch (err) {
+    console.error('Error in unfollowUser:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -185,8 +228,22 @@ exports.unfollowUser = async (req, res) => {
 exports.getFemaleFollowingList = async (req, res) => {
   try {
     const femaleUser = await FemaleUser.findById(req.user._id);
+    
+    // Get list of users that the current female user has blocked
+    const blockedByCurrentUser = await BlockList.find({ femaleUserId: req.user._id }).select('blockedUserId');
+    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
+    
+    // Get list of users who have blocked the current female user
+    const blockedByOthers = await MaleBlockList.find({ blockedUserId: req.user._id }).select('maleUserId');
+    const blockedByOthersIds = blockedByOthers.map(block => block.maleUserId);
 
-    const followingList = await FemaleFollowing.find({ femaleUserId: femaleUser._id }).populate('maleUserId', 'firstName lastName email');
+    const followingList = await FemaleFollowing.find({ 
+      femaleUserId: femaleUser._id,
+      maleUserId: { 
+        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
+      }
+    }).populate('maleUserId', 'firstName lastName email');
+    
     res.json({ success: true, data: followingList });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -196,7 +253,21 @@ exports.getFemaleFollowingList = async (req, res) => {
 // Get Female User's Followers List
 exports.getFemaleFollowersList = async (req, res) => {
   try {
-    const followersList = await FemaleFollowers.find({ femaleUserId: req.user._id }).populate('maleUserId', 'firstName lastName email');
+    // Get list of users that the current female user has blocked
+    const blockedByCurrentUser = await BlockList.find({ femaleUserId: req.user._id }).select('blockedUserId');
+    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
+    
+    // Get list of users who have blocked the current female user
+    const blockedByOthers = await MaleBlockList.find({ blockedUserId: req.user._id }).select('maleUserId');
+    const blockedByOthersIds = blockedByOthers.map(block => block.maleUserId);
+
+    const followersList = await FemaleFollowers.find({ 
+      femaleUserId: req.user._id,
+      maleUserId: { 
+        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
+      }
+    }).populate('maleUserId', 'firstName lastName email');
+    
     res.json({ success: true, data: followersList });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

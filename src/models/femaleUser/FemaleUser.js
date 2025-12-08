@@ -25,8 +25,8 @@ const femaleUserSchema = new mongoose.Schema({
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }],
 
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
-  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }],
-  femalefollowing: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleFollowers' }],
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleFollowers' }], // Fixed: should reference FemaleFollowers, not MaleUser
+  femalefollowing: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleFollowing' }], // Fixed: should reference FemaleFollowing
   earnings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Earnings' }],
   blockList: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' }],
   beautyFilter: { type: Boolean, default: false },

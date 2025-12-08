@@ -1,6 +1,8 @@
 const MaleUser = require('../../models/maleUser/MaleUser');
 const Image = require('../../models/maleUser/Image');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
+const MaleBlockList = require('../../models/maleUser/BlockList');
+const FemaleBlockList = require('../../models/femaleUser/BlockList');
 const Package = require('../../models/maleUser/Package');
 const generateToken = require('../../utils/generateToken');  // Utility function to generate JWT token
 const generateReferralCode = require('../../utils/generateReferralCode');
@@ -363,7 +365,21 @@ exports.listFemaleUsers = async (req, res) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
-    const filter = { status: 'active', reviewStatus: 'approved' };
+    // Get list of users that the current male user has blocked
+    const blockedByCurrentUser = await MaleBlockList.find({ maleUserId: req.user.id }).select('blockedUserId');
+    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
+    
+    // Get list of users who have blocked the current male user
+    const blockedByOthers = await FemaleBlockList.find({ blockedUserId: req.user.id }).select('femaleUserId');
+    const blockedByOthersIds = blockedByOthers.map(block => block.femaleUserId);
+
+    const filter = { 
+      status: 'active', 
+      reviewStatus: 'approved',
+      _id: { 
+        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
+      }
+    };
 
     const [items, total] = await Promise.all([
       FemaleUser.find(filter)

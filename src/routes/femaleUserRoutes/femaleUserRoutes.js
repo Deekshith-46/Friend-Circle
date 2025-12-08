@@ -11,15 +11,19 @@ const { parser, videoParser } = require('../../config/multer');
 const Transaction = require('../../models/common/Transaction');
 const { getInterests } = require('../../controllers/common/interestController');
 const { getLanguages } = require('../../controllers/common/languageController');
+const { preventBlockedInteraction } = require('../../middlewares/blockMiddleware');
 
 // Import the new follow request routes
 const followRequestRoutes = require('./followRequestRoutes');
+
+// Apply block middleware to all routes except block/unblock
+router.use(preventBlockedInteraction);
 
 // Public routes for interests and languages
 router.get('/interests', getInterests);
 router.get('/languages', getLanguages);
 
- 
+
 // Registration and OTP
 router.post('/register', femaleUserController.registerUser);
 
@@ -77,6 +81,9 @@ router.post('/upload-video', auth, videoParser.single('video'), femaleUserContro
 
 // Delete image by id
 router.delete('/images/:imageId', auth, femaleUserController.deleteImage);
+
+// Browse male users (paginated)
+router.get('/browse-males', auth, femaleUserController.listMaleUsers);
 
 // Follow Male User
 router.post('/follow', auth, followingFollowersController.followUser);

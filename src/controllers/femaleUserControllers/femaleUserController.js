@@ -1,4 +1,7 @@
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
+const MaleUser = require('../../models/maleUser/MaleUser');
+const FemaleBlockList = require('../../models/femaleUser/BlockList');
+const MaleBlockList = require('../../models/maleUser/BlockList');
 const generateToken = require('../../utils/generateToken');
 const sendOtp = require('../../utils/sendOtp');
 const FemaleImage = require('../../models/femaleUser/Image');
@@ -550,6 +553,53 @@ exports.deleteImage = async (req, res) => {
     await FemaleImage.deleteOne({ _id: imageDoc._id });
 
     return res.json({ success: true, message: 'Image deleted successfully' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// List/browse male users for female users (paginated)
+exports.listMaleUsers = async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
+    // Get list of users that the current female user has blocked
+    const blockedByCurrentUser = await FemaleBlockList.find({ femaleUserId: req.user.id }).select('blockedUserId');
+    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
+    
+    // Get list of users who have blocked the current female user
+    const blockedByOthers = await MaleBlockList.find({ blockedUserId: req.user.id }).select('maleUserId');
+    const blockedByOthersIds = blockedByOthers.map(block => block.maleUserId);
+
+    const filter = { 
+      status: 'active', 
+      reviewStatus: 'approved',
+      _id: { 
+        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
+      }
+    };
+
+    const [items, total] = await Promise.all([
+      MaleUser.find(filter)
+        .select('firstName lastName age bio profileImages')
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      MaleUser.countDocuments(filter)
+    ]);
+
+    const data = items.map((u) => ({
+      _id: u._id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      age: u.age,
+      bio: u.bio,
+      avatarUrl: Array.isArray(u.profileImages) && u.profileImages.length > 0 ? u.profileImages[0] : null
+    }));
+
+    return res.json({ success: true, page, limit, total, data });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
