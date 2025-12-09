@@ -100,6 +100,7 @@ router.post('/unblock', auth, blockListController.unblockUser);
 router.get('/block-list', auth, blockListController.getBlockList);
 
 // Call Routes
+router.post('/calls/start', auth, callController.startCall);
 router.post('/calls/end', auth, callController.endCall);
 router.get('/calls/history', auth, callController.getCallHistory);
 router.get('/calls/stats', auth, callController.getCallStats);

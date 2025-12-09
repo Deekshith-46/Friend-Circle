@@ -1,5 +1,6 @@
 const AdminUser = require('../../models/admin/AdminUser');
 const Staff = require('../../models/admin/Staff');
+const AdminConfig = require('../../models/admin/AdminConfig');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../../utils/generateToken');
 const createAuditLog = require('../../utils/createAuditLog');
@@ -79,5 +80,62 @@ exports.deleteAdmin = async (req, res) => {
     res.json({ success: true, message: 'Admin account deleted' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get admin configuration
+exports.getAdminConfig = async (req, res) => {
+  try {
+    const config = await AdminConfig.getConfig();
+    return res.json({
+      success: true,
+      data: config
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+// Update minCallCoins setting
+exports.updateMinCallCoins = async (req, res) => {
+  try {
+    const { minCallCoins } = req.body;
+    
+    // Validate input
+    if (minCallCoins === undefined || minCallCoins === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'minCallCoins is required' 
+      });
+    }
+    
+    const numericValue = Number(minCallCoins);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'minCallCoins must be a valid non-negative number' 
+      });
+    }
+    
+    // Get or create config and update minCallCoins
+    let config = await AdminConfig.getConfig();
+    config.minCallCoins = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Minimum call coins setting updated successfully',
+      data: {
+        minCallCoins: config.minCallCoins
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
   }
 };

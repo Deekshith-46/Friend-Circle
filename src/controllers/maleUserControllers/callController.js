@@ -2,6 +2,118 @@ const MaleUser = require('../../models/maleUser/MaleUser');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const CallHistory = require('../../models/common/CallHistory');
 const Transaction = require('../../models/common/Transaction');
+const AdminConfig = require('../../models/admin/AdminConfig');
+
+// Start Call - Check minimum coins requirement and calculate max duration
+exports.startCall = async (req, res) => {
+  const { receiverId, callType } = req.body;
+  const callerId = req.user._id; // Authenticated male user
+
+  try {
+    // Validate input
+    if (!receiverId) {
+      return res.status(400).json({
+        success: false,
+        message: 'receiverId is required'
+      });
+    }
+
+    // Get caller (male user) and receiver (female user)
+    const caller = await MaleUser.findById(callerId);
+    const receiver = await FemaleUser.findById(receiverId);
+
+    if (!caller) {
+      return res.status(404).json({
+        success: false,
+        message: 'Caller not found'
+      });
+    }
+
+    if (!receiver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Receiver not found'
+      });
+    }
+
+    // Check if users follow each other (they are matched)
+    const isCallerFollowing = caller.malefollowing && caller.malefollowing.includes(receiverId);
+    const isReceiverFollowing = receiver.femalefollowing && receiver.femalefollowing.includes(callerId);
+    
+    if (!isCallerFollowing || !isReceiverFollowing) {
+      return res.status(400).json({
+        success: false,
+        message: 'Both users must follow each other to start a call'
+      });
+    }
+
+    // Check block list (no blocking between them)
+    const isCallerBlocked = receiver.blockList && receiver.blockList.includes(callerId);
+    const isReceiverBlocked = caller.blockList && caller.blockList.includes(receiverId);
+    
+    if (isCallerBlocked || isReceiverBlocked) {
+      return res.status(400).json({
+        success: false,
+        message: 'Either user has blocked the other, cannot start call'
+      });
+    }
+
+    // Get the per-second rate from female user
+    const coinsPerSecond = receiver.coinsPerSecond || 2; // Default 2 if not set
+    
+    // Get minimum call coins setting from admin config
+    const adminConfig = await AdminConfig.getConfig();
+    const minCallCoins = adminConfig.minCallCoins || 60; // Default 60 if not set
+
+    // Check minimum balance requirement
+    if (caller.coinBalance < minCallCoins) {
+      return res.status(400).json({
+        success: false,
+        message: `Minimum ${minCallCoins} coins required to start a call`,
+        data: {
+          available: caller.coinBalance,
+          required: minCallCoins,
+          shortfall: minCallCoins - caller.coinBalance
+        }
+      });
+    }
+
+    // Calculate maximum possible seconds
+    const maxSeconds = Math.floor(caller.coinBalance / coinsPerSecond);
+
+    // Check if user has enough coins for at least 1 second
+    if (maxSeconds <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Not enough coins to start call',
+        data: {
+          available: caller.coinBalance,
+          rate: coinsPerSecond,
+          maxSeconds: 0
+        }
+      });
+    }
+
+    // Return success response with maxSeconds for frontend timer
+    return res.json({
+      success: true,
+      message: 'Call can be started',
+      data: {
+        maxSeconds,
+        coinsPerSecond,
+        callerCoinBalance: caller.coinBalance,
+        minCallCoins
+      }
+    });
+
+  } catch (err) {
+    console.error('Error starting call:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+};
 
 // End Call - Calculate coins, deduct from male, credit to female
 exports.endCall = async (req, res) => {
@@ -69,42 +181,52 @@ exports.endCall = async (req, res) => {
 
     // Get the per-second rate from female user
     const coinsPerSecond = receiver.coinsPerSecond || 2; // Default 2 if not set
+    
+    // Get minimum call coins setting from admin config
+    const adminConfig = await AdminConfig.getConfig();
+    const minCallCoins = adminConfig.minCallCoins || 60; // Default 60 if not set
 
-    // Calculate total coins
-    const totalCoins = Math.ceil(duration * coinsPerSecond);
-
-    // Check if male user has sufficient balance
-    if (caller.coinBalance < totalCoins) {
+    // Calculate maximum possible seconds based on current balance
+    const maxSeconds = Math.floor(caller.coinBalance / coinsPerSecond);
+    
+    // Apply hard limit (safety) - billable seconds cannot exceed maxSeconds
+    const billableSeconds = Math.min(duration, maxSeconds);
+    
+    // Calculate coins to charge based on billable seconds
+    const coinsToCharge = billableSeconds * coinsPerSecond;
+    
+    // Additional safety check - ensure user has at least the coins to charge
+    if (caller.coinBalance < coinsToCharge) {
       // Record failed call due to insufficient coins
       const callRecord = await CallHistory.create({
         callerId,
         receiverId,
         duration,
         coinsPerSecond,
-        totalCoins,
+        totalCoins: coinsToCharge,
         callType: callType || 'video',
         status: 'insufficient_coins',
-        errorMessage: `Insufficient coins. Required: ${totalCoins}, Available: ${caller.coinBalance}`
+        errorMessage: `Insufficient coins. Required: ${coinsToCharge}, Available: ${caller.coinBalance}`
       });
 
       return res.status(400).json({
         success: false,
         message: 'Insufficient coins',
         data: {
-          required: totalCoins,
+          required: coinsToCharge,
           available: caller.coinBalance,
-          shortfall: totalCoins - caller.coinBalance,
+          shortfall: coinsToCharge - caller.coinBalance,
           callId: callRecord._id
         }
       });
     }
 
     // Deduct coins from male user
-    caller.coinBalance -= totalCoins;
+    caller.coinBalance -= coinsToCharge;
     await caller.save();
 
     // Credit coins to female user (wallet balance for withdrawal)
-    receiver.walletBalance = (receiver.walletBalance || 0) + totalCoins;
+    receiver.walletBalance = (receiver.walletBalance || 0) + coinsToCharge;
     await receiver.save();
 
     // Create call history record
@@ -113,7 +235,7 @@ exports.endCall = async (req, res) => {
       receiverId,
       duration,
       coinsPerSecond,
-      totalCoins,
+      totalCoins: coinsToCharge,
       callType: callType || 'video',
       status: 'completed'
     });
@@ -124,8 +246,8 @@ exports.endCall = async (req, res) => {
       userId: callerId,
       operationType: 'coin',
       action: 'debit',
-      amount: totalCoins,
-      message: `Video/Audio call with ${receiver.name || receiver.email} for ${duration} seconds`,
+      amount: coinsToCharge,
+      message: `Video/Audio call with ${receiver.name || receiver.email} for ${billableSeconds} seconds`,
       balanceAfter: caller.coinBalance,
       createdBy: callerId,
       relatedId: callRecord._id,
@@ -137,8 +259,8 @@ exports.endCall = async (req, res) => {
       userId: receiverId,
       operationType: 'wallet',
       action: 'credit',
-      amount: totalCoins,
-      message: `Earnings from call with ${caller.name || caller.email} for ${duration} seconds`,
+      amount: coinsToCharge,
+      message: `Earnings from call with ${caller.name || caller.email} for ${billableSeconds} seconds`,
       balanceAfter: receiver.walletBalance,
       createdBy: receiverId,
       relatedId: callRecord._id,
@@ -151,11 +273,11 @@ exports.endCall = async (req, res) => {
       message: 'Call ended successfully',
       data: {
         callId: callRecord._id,
-        duration,
+        duration: billableSeconds,
         coinsPerSecond,
-        totalCoins,
-        coinsDeducted: totalCoins,
-        coinsCredited: totalCoins,
+        totalCoins: coinsToCharge,
+        coinsDeducted: coinsToCharge,
+        coinsCredited: coinsToCharge,
         callerRemainingBalance: caller.coinBalance,
         receiverNewBalance: receiver.walletBalance
       }

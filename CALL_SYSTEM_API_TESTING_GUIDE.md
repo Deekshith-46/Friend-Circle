@@ -20,7 +20,39 @@ Before testing calls, ensure male user has sufficient coin balance.
 
 ## 📋 Step-by-Step API Testing
 
-### **STEP 1: Admin Sets Female User's Call Rate**
+### **STEP 1: Admin Sets Minimum Call Coins Requirement**
+
+**Endpoint:** `POST /api/admin/config/min-call-coins`
+
+**Headers:**
+```json
+{
+  "Authorization": "Bearer <ADMIN_TOKEN>",
+  "Content-Type": "application/json"
+}
+```
+
+**Request Body:**
+```json
+{
+  "minCallCoins": 60
+}
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "message": "Minimum call coins setting updated successfully",
+  "data": {
+    "minCallCoins": 60
+  }
+}
+```
+
+---
+
+### **STEP 2: Admin Sets Female User's Call Rate**
 
 **Endpoint:** `POST /api/admin/users/set-call-rate`
 
@@ -90,7 +122,63 @@ Before testing calls, ensure male user has sufficient coin balance.
 
 ---
 
-### **STEP 3: Start Call in Frontend (Agora Integration)**
+### **STEP 3: Start Call (With Minimum Coins Validation)**
+
+Before initiating a call, the system validates that the male user has sufficient coins to meet the minimum requirement and calculates the maximum call duration.
+
+**Endpoint:** `POST /api/male-user/calls/start`
+
+**Headers:**
+```json
+{
+  "Authorization": "Bearer <MALE_USER_TOKEN>",
+  "Content-Type": "application/json"
+}
+```
+
+**Request Body:**
+```json
+{
+  "receiverId": "female_user_id_here",
+  "callType": "video"
+}
+```
+
+**Example Response (Success):**
+```json
+{
+  "success": true,
+  "message": "Call can be started",
+  "data": {
+    "maxSeconds": 80,
+    "coinsPerSecond": 2,
+    "callerCoinBalance": 160,
+    "minCallCoins": 60
+  }
+}
+```
+
+**Example Response (Insufficient Coins for Minimum Requirement):**
+```json
+{
+  "success": false,
+  "message": "Minimum 60 coins required to start a call",
+  "data": {
+    "available": 3,
+    "required": 60,
+    "shortfall": 57
+  }
+}
+```
+
+**Frontend Integration:** Upon receiving a successful response, the frontend should:
+1. Display a countdown timer set to `maxSeconds`
+2. Automatically end the Agora call when the timer reaches 0
+3. Call the existing `/calls/end` endpoint with the actual duration
+
+---
+
+### **STEP 4: Start Call in Frontend (Agora Integration)**
 
 **Frontend Code Example:**
 ```javascript
@@ -182,9 +270,9 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 5: Test Insufficient Coins Scenario**
+### **STEP 6: Test Insufficient Coins Scenario**
 
-**Request Body:** (Same as Step 4, but with duration > available balance)
+**Request Body:** (Same as Step 5, but with duration > available balance)
 ```json
 {
   "receiverId": "female_user_id_here",
@@ -211,7 +299,7 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 6: Verify Male User's Call History**
+### **STEP 7: Verify Male User's Call History**
 
 **Endpoint:** `GET /api/male/calls/history?limit=10&skip=0`
 
@@ -253,7 +341,7 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 7: Get Male User's Call Statistics**
+### **STEP 8: Get Male User's Call Statistics**
 
 **Endpoint:** `GET /api/male/calls/stats`
 
@@ -278,7 +366,7 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 8: Verify Female User's Earnings**
+### **STEP 9: Verify Female User's Earnings**
 
 **Endpoint:** `GET /api/female/calls/earnings?limit=10&skip=0`
 
@@ -320,7 +408,7 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 9: Get Female User's Earnings Statistics**
+### **STEP 10: Get Female User's Earnings Statistics**
 
 **Endpoint:** `GET /api/female/calls/earnings-stats`
 
@@ -345,7 +433,7 @@ async function endCallAndProcessPayment(receiverId, duration) {
 
 ---
 
-### **STEP 10: Check Transactions**
+### **STEP 11: Check Transactions**
 
 **For Male User:**
 ```
@@ -434,7 +522,22 @@ GET /api/female/me/transactions?operationType=wallet
 
 ---
 
-### Scenario 5: Different Female User Rates
+### Scenario 5: Insufficient Minimum Coins
+- Male user has 3 coins
+- Minimum required: 60 coins
+**Expected:** Error with message "Minimum 60 coins required to start a call"
+
+---
+
+### Scenario 6: Exact Minimum Coins
+- Male user has 60 coins
+- Rate: 2 coins/second
+- Max seconds: 30
+**Expected:** Call allowed for up to 30 seconds
+
+---
+
+### Scenario 7: Different Female User Rates
 **Test with:**
 - Srija (2 coins/sec) - 60 sec = 120 coins
 - Sruthi (4 coins/sec) - 60 sec = 240 coins
@@ -446,7 +549,17 @@ GET /api/female/me/transactions?operationType=wallet
 
 ### Collection: Call System Testing
 
-#### 1. Set Call Rate (Admin)
+#### 1. Set Minimum Call Coins (Admin)
+```
+POST {{baseUrl}}/api/admin/config/min-call-coins
+Headers: Authorization: Bearer {{adminToken}}
+Body:
+{
+  "minCallCoins": 60
+}
+```
+
+#### 2. Set Call Rate (Admin)
 ```
 POST {{baseUrl}}/api/admin/users/set-call-rate
 Headers: Authorization: Bearer {{adminToken}}
@@ -457,7 +570,18 @@ Body:
 }
 ```
 
-#### 2. End Call (Male User)
+#### 3. Start Call (Male User)
+```
+POST {{baseUrl}}/api/male/calls/start
+Headers: Authorization: Bearer {{maleToken}}
+Body:
+{
+  "receiverId": "{{femaleUserId}}",
+  "callType": "video"
+}
+```
+
+#### 4. End Call (Male User)
 ```
 POST {{baseUrl}}/api/male/calls/end
 Headers: Authorization: Bearer {{maleToken}}
@@ -469,13 +593,13 @@ Body:
 }
 ```
 
-#### 3. Get Call History (Male)
+#### 5. Get Call History (Male)
 ```
 GET {{baseUrl}}/api/male/calls/history?limit=10
 Headers: Authorization: Bearer {{maleToken}}
 ```
 
-#### 4. Get Earnings (Female)
+#### 6. Get Earnings (Female)
 ```
 GET {{baseUrl}}/api/female/calls/earnings?limit=10
 Headers: Authorization: Bearer {{femaleToken}}
@@ -565,37 +689,100 @@ POST /api/male/calls/end
 
 ---
 
+### 5. Missing receiverId (Start Call)
+```json
+{}
+```
+**Expected:** 400 - "receiverId is required"
+
+---
+
+### 6. Caller Not Found (Start Call)
+```
+POST /api/male-user/calls/start with invalid user token
+```
+**Expected:** 404 - "Caller not found"
+
+---
+
+### 7. Receiver Not Found (Start Call)
+```json
+{
+  "receiverId": "invalid_id"
+}
+```
+**Expected:** 404 - "Receiver not found"
+
+---
+
+### 8. Users Not Following Each Other
+```
+POST /api/male-user/calls/start with users who don't follow each other
+```
+**Expected:** 400 - "Both users must follow each other to start a call"
+
+---
+
+### 9. Blocked Users
+```
+POST /api/male-user/calls/start with blocked users
+```
+**Expected:** 400 - "Either user has blocked the other, cannot start call"
+
+---
+
+### 10. Insufficient Minimum Coins
+- Male user has 3 coins
+- Minimum required: 60 coins
+**Expected:** 400 - "Minimum 60 coins required to start a call"
+
+---
+
 ## 🎬 Complete Test Flow
 
-1. **Setup:** Admin sets Srija's rate to 2 coins/sec
-2. **Check:** Male user has 500 coins
-3. **Call 1:** 65-second call → 130 coins (Success)
-4. **Verify:** Male has 370 coins, Srija has 130 wallet
-5. **Call 2:** 200-second call → 400 coins (Success)
-6. **Verify:** Male has -30 coins (SHOULD FAIL - insufficient)
-7. **Check History:** Both users see call records
-8. **Check Stats:** View aggregated statistics
-9. **Admin Change:** Set Srija to 3 coins/sec
-10. **Call 3:** 50-second call → 150 coins with new rate
+1. **Setup:** Admin sets minimum call coins to 60
+2. **Setup:** Admin sets Srija's rate to 2 coins/sec
+3. **Check:** Male user has 500 coins
+4. **Start Call:** Validate male user can start call and get maxSeconds
+5. **Call 1:** 65-second call → 130 coins (Success)
+6. **Verify:** Male has 370 coins, Srija has 130 wallet
+7. **Call 2:** 200-second call → 400 coins (Success)
+8. **Verify:** Male has -30 coins (SHOULD FAIL - insufficient)
+9. **Check History:** Both users see call records
+10. **Check Stats:** View aggregated statistics
+11. **Admin Change:** Set Srija to 3 coins/sec
+12. **Call 3:** 50-second call → 150 coins with new rate
 
 ---
 
 ## 🚀 Quick Start Testing Script
 
 ```bash
-# 1. Set call rate
+# 1. Set minimum call coins
+curl -X POST http://localhost:3000/api/admin/config/min-call-coins \
+  -H "Authorization: Bearer ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"minCallCoins":60}'
+
+# 2. Set call rate
 curl -X POST http://localhost:3000/api/admin/users/set-call-rate \
   -H "Authorization: Bearer ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"userId":"FEMALE_ID","coinsPerSecond":2}'
 
-# 2. End call
+# 3. Start call
+curl -X POST http://localhost:3000/api/male-user/calls/start \
+  -H "Authorization: Bearer MALE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"receiverId":"FEMALE_ID","callType":"video"}'
+
+# 4. End call
 curl -X POST http://localhost:3000/api/male/calls/end \
   -H "Authorization: Bearer MALE_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"receiverId":"FEMALE_ID","duration":65,"callType":"video"}'
 
-# 3. Check history
+# 5. Check history
 curl -X GET http://localhost:3000/api/male/calls/history \
   -H "Authorization: Bearer MALE_TOKEN"
 ```
@@ -604,8 +791,11 @@ curl -X GET http://localhost:3000/api/male/calls/history \
 
 ## ✅ Success Criteria
 
+- ✅ Admin can set minimum call coins requirement
 - ✅ Admin can set per-second rate for each female user
+- ✅ Male users must have minimum coins to start a call
 - ✅ Call duration is accurately calculated from frontend
+- ✅ Maximum call duration is calculated and sent to frontend
 - ✅ Coins are correctly deducted from male user
 - ✅ Coins are correctly credited to female user's wallet
 - ✅ Call history is saved with all details
@@ -614,6 +804,8 @@ curl -X GET http://localhost:3000/api/male/calls/history \
 - ✅ Statistics endpoints return accurate data
 - ✅ Zero-duration calls don't charge
 - ✅ Different rates work for different female users
+- ✅ Frontend timer integration works correctly
+- ✅ Over-billing protection prevents charging more than maximum allowed
 
 ---
 
@@ -626,6 +818,9 @@ curl -X GET http://localhost:3000/api/male/calls/history \
    - Female users earn to **walletBalance** (for withdrawal)
 4. **Call Types:** Currently supports 'audio' and 'video' (same rate)
 5. **Rate Changes:** New rate applies to future calls, not historical ones
+6. **Minimum Call Coins:** Prevents 1-second calls and call spam by requiring a minimum balance
+7. **Auto-Cut Timer:** Frontend should implement a countdown timer based on maxSeconds returned by start call API
+8. **Over-Billing Protection:** Backend enforces maximum call duration regardless of frontend duration to prevent over-charging
 
 ---
 
