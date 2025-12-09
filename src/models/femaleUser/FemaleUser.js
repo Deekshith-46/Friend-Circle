@@ -32,6 +32,9 @@ const femaleUserSchema = new mongoose.Schema({
   beautyFilter: { type: Boolean, default: false },
   hideAge: { type: Boolean, default: false },
   onlineStatus: { type: Boolean, default: false },
+  onlineStartTime: { type: Date },
+  totalOnlineMinutes: { type: Number, default: 0 },
+  missedCalls: { type: Number, default: 0 },
   walletBalance: { type: Number, default: 0 },
   coinBalance: { type: Number, default: 0 },
   // Call rate system

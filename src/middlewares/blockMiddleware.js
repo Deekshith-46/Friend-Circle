@@ -55,7 +55,8 @@ const preventBlockedInteraction = async (req, res, next) => {
     const skipRoutes = [
       '/block',
       '/unblock',
-      '/block-list'
+      '/block-list',
+      '/toggle-online-status'
     ];
     
     const fullPath = req.originalUrl;

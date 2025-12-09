@@ -2,6 +2,7 @@ const Gift = require('../../models/admin/Gift');
 const MaleUser = require('../../models/maleUser/MaleUser');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const Transaction = require('../../models/common/Transaction');
+const GiftReceived = require('../../models/femaleUser/GiftReceived');
 
 // List available gifts (published)
 exports.listGifts = async (req, res) => {
@@ -39,8 +40,11 @@ exports.sendGift = async (req, res) => {
     }
 
     // Adjust balances
+    // Deduct coins from male user's coinBalance
     male.coinBalance = (male.coinBalance || 0) - cost;
-    female.coinBalance = (female.coinBalance || 0) + cost;
+    
+    // Add real money equivalent to female user's walletBalance
+    female.walletBalance = (female.walletBalance || 0) + cost;
 
     await male.save();
     await female.save();
@@ -56,21 +60,38 @@ exports.sendGift = async (req, res) => {
       balanceAfter: male.coinBalance,
       createdBy: male._id
     });
+    
     await Transaction.create({
       userType: 'female',
       userId: female._id,
-      operationType: 'coin',
+      operationType: 'wallet',
       action: 'credit',
       amount: cost,
+      earningType: 'gift',
       message: `Gift received (${gift.giftTitle || 'gift'}) from ${male.email}`,
-      balanceAfter: female.coinBalance,
+      balanceAfter: female.walletBalance,
       createdBy: male._id
     });
 
-    return res.json({ success: true, message: 'Gift sent successfully.', data: { maleCoinBalance: male.coinBalance, femaleCoinBalance: female.coinBalance } });
+    // Save gift received record
+    await GiftReceived.create({
+      senderId: male._id,
+      receiverId: female._id,
+      giftId: gift._id,
+      giftTitle: gift.giftTitle,
+      coinsSpent: cost,
+      message: `Gift received (${gift.giftTitle || 'gift'}) from ${male.firstName} ${male.lastName || ''}`
+    });
+
+    return res.json({ 
+      success: true, 
+      message: 'Gift sent successfully.', 
+      data: { 
+        maleCoinBalance: male.coinBalance, 
+        femaleWalletBalance: female.walletBalance 
+      } 
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
-
-

@@ -3,6 +3,8 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const CallHistory = require('../../models/common/CallHistory');
 const Transaction = require('../../models/common/Transaction');
 const AdminConfig = require('../../models/admin/AdminConfig');
+const MaleFollowing = require('../../models/maleUser/Following');
+const FemaleFollowing = require('../../models/femaleUser/Following');
 
 // Start Call - Check minimum coins requirement and calculate max duration
 exports.startCall = async (req, res) => {
@@ -37,8 +39,16 @@ exports.startCall = async (req, res) => {
     }
 
     // Check if users follow each other (they are matched)
-    const isCallerFollowing = caller.malefollowing && caller.malefollowing.includes(receiverId);
-    const isReceiverFollowing = receiver.femalefollowing && receiver.femalefollowing.includes(callerId);
+    // We need to check the actual following collections, not just the arrays in user documents
+    const isCallerFollowing = await MaleFollowing.findOne({ 
+      maleUserId: callerId, 
+      femaleUserId: receiverId 
+    });
+    
+    const isReceiverFollowing = await FemaleFollowing.findOne({ 
+      femaleUserId: receiverId, 
+      maleUserId: callerId 
+    });
     
     if (!isCallerFollowing || !isReceiverFollowing) {
       return res.status(400).json({
@@ -189,43 +199,45 @@ exports.endCall = async (req, res) => {
     // Calculate maximum possible seconds based on current balance
     const maxSeconds = Math.floor(caller.coinBalance / coinsPerSecond);
     
-    // Apply hard limit (safety) - billable seconds cannot exceed maxSeconds
-    const billableSeconds = Math.min(duration, maxSeconds);
-    
-    // Calculate coins to charge based on billable seconds
-    const coinsToCharge = billableSeconds * coinsPerSecond;
-    
-    // Additional safety check - ensure user has at least the coins to charge
-    if (caller.coinBalance < coinsToCharge) {
+    // Check if user has enough coins for the requested duration
+    // If not, reject the call entirely rather than adjusting the duration
+    const requestedCoins = duration * coinsPerSecond;
+    if (caller.coinBalance < requestedCoins) {
       // Record failed call due to insufficient coins
       const callRecord = await CallHistory.create({
         callerId,
         receiverId,
         duration,
         coinsPerSecond,
-        totalCoins: coinsToCharge,
+        totalCoins: requestedCoins,
         callType: callType || 'video',
         status: 'insufficient_coins',
-        errorMessage: `Insufficient coins. Required: ${coinsToCharge}, Available: ${caller.coinBalance}`
+        errorMessage: `Insufficient coins. Required: ${requestedCoins}, Available: ${caller.coinBalance}`
       });
 
       return res.status(400).json({
         success: false,
         message: 'Insufficient coins',
         data: {
-          required: coinsToCharge,
+          required: requestedCoins,
           available: caller.coinBalance,
-          shortfall: coinsToCharge - caller.coinBalance,
+          shortfall: requestedCoins - caller.coinBalance,
           callId: callRecord._id
         }
       });
     }
-
+    
+    // If we get here, user has enough coins for the full duration
+    const billableSeconds = duration;
+    
+    // Calculate coins to charge based on billable seconds
+    const coinsToCharge = billableSeconds * coinsPerSecond;
+    
     // Deduct coins from male user
     caller.coinBalance -= coinsToCharge;
     await caller.save();
 
-    // Credit coins to female user (wallet balance for withdrawal)
+    // Credit earnings to female user's wallet balance (real money she can withdraw)
     receiver.walletBalance = (receiver.walletBalance || 0) + coinsToCharge;
     await receiver.save();
 
@@ -260,6 +272,7 @@ exports.endCall = async (req, res) => {
       operationType: 'wallet',
       action: 'credit',
       amount: coinsToCharge,
+      earningType: 'call',
       message: `Earnings from call with ${caller.name || caller.email} for ${billableSeconds} seconds`,
       balanceAfter: receiver.walletBalance,
       createdBy: receiverId,

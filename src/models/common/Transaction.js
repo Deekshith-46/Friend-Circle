@@ -9,9 +9,8 @@ const transactionSchema = new mongoose.Schema({
   amount: { type: Number, required: true, min: 0 },
   message: { type: String },
   balanceAfter: { type: Number, required: true },
+  earningType: { type: String, enum: ['call', 'gift', 'other'] }, // Type of earning for female users
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Transaction', transactionSchema);
-
-

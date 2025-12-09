@@ -627,3 +627,54 @@ exports.cleanupIncompleteProfiles = async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// Toggle online status for female user
+exports.toggleOnlineStatus = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { onlineStatus } = req.body; // true for online, false for offline
+    
+    if (typeof onlineStatus !== 'boolean') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'onlineStatus (boolean) is required in request body' 
+      });
+    }
+
+    const user = await FemaleUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // If going online
+    if (onlineStatus) {
+      // Set online start time
+      user.onlineStartTime = new Date();
+      user.onlineStatus = true;
+    } 
+    // If going offline
+    else {
+      // Calculate online duration and add to total
+      if (user.onlineStartTime) {
+        const endTime = new Date();
+        const durationMinutes = (endTime - user.onlineStartTime) / (1000 * 60); // Convert ms to minutes
+        user.totalOnlineMinutes = (user.totalOnlineMinutes || 0) + durationMinutes;
+        user.onlineStartTime = null; // Reset start time
+      }
+      user.onlineStatus = false;
+    }
+
+    await user.save();
+
+    return res.json({ 
+      success: true, 
+      message: `Status updated to ${onlineStatus ? 'online' : 'offline'}`,
+      data: {
+        onlineStatus: user.onlineStatus,
+        totalOnlineMinutes: user.totalOnlineMinutes || 0
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};

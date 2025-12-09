@@ -5,6 +5,9 @@ const femaleUserController = require('../../controllers/femaleUserControllers/fe
 const followingFollowersController = require('../../controllers/femaleUserControllers/followingFollowersController');
 const chatController = require('../../controllers/femaleUserControllers/chatController');
 const earningsController = require('../../controllers/femaleUserControllers/earningsController');
+const callEarningsController = require('../../controllers/femaleUserControllers/callEarningsController');
+const giftController = require('../../controllers/femaleUserControllers/giftController');
+const statsController = require('../../controllers/femaleUserControllers/statsController');
 const kycController = require('../../controllers/femaleUserControllers/kycController');
 const blockListController = require('../../controllers/femaleUserControllers/blockListController');
 const { parser, videoParser } = require('../../config/multer');
@@ -73,6 +76,9 @@ router.put('/interests', auth, femaleUserController.updateInterests);
 // Update user languages
 router.put('/languages', auth, femaleUserController.updateLanguages);
 
+// Online Status Toggle
+router.post('/toggle-online-status', auth, femaleUserController.toggleOnlineStatus);
+
 // Upload Images via form-data (field: images)
 router.post('/upload-image', auth, parser.array('images', 5), femaleUserController.uploadImage);
 
@@ -113,6 +119,20 @@ router.get('/chat-history', auth, chatController.getChatHistory);
 // Earnings Routes
 router.get('/rewards', auth, earningsController.getRewards);
 // router.post('/add-reward', auth, earningsController.addReward);
+
+// Call Earnings Routes
+router.get('/calls/earnings', auth, callEarningsController.getCallEarnings);
+router.get('/calls/earnings-stats', auth, callEarningsController.getCallEarningsStats);
+
+// Gift Routes
+router.get('/gifts/received', auth, giftController.getReceivedGifts);
+router.get('/gifts/stats', auth, giftController.getGiftStats);
+
+// Stats Routes
+router.get('/stats', auth, statsController.getFemaleUserStats);
+router.get('/stats/:userId', auth, statsController.getFemaleUserStats);
+router.post('/increment-missed-calls', auth, statsController.incrementMissedCalls);
+router.post('/increment-missed-calls/:userId', auth, statsController.incrementMissedCalls);
 
 // KYC Routes
 router.post('/submit-kyc', auth, kycController.submitKYC);
