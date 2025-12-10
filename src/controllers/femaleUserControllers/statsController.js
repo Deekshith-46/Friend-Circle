@@ -2,6 +2,8 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const Transaction = require('../../models/common/Transaction');
 const CallHistory = require('../../models/common/CallHistory');
 const GiftReceived = require('../../models/femaleUser/GiftReceived');
+const PendingReward = require('../../models/common/PendingReward');
+const RewardHistory = require('../../models/common/RewardHistory');
 
 // Get female user statistics
 exports.getFemaleUserStats = async (req, res) => {
@@ -71,6 +73,33 @@ exports.getFemaleUserStats = async (req, res) => {
         giftEarning: giftEarning,
         otherEarning: otherEarning,
         walletBalance: user.walletBalance || 0
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get female user reward history
+exports.getRewardHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { limit = 50, skip = 0 } = req.query;
+    
+    const history = await RewardHistory.find({ userId })
+      .sort({ date: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(skip));
+      
+    const total = await RewardHistory.countDocuments({ userId });
+    
+    return res.json({
+      success: true,
+      data: history,
+      pagination: {
+        total,
+        limit: parseInt(limit),
+        skip: parseInt(skip)
       }
     });
   } catch (err) {

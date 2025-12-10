@@ -131,6 +131,7 @@ router.get('/gifts/stats', auth, giftController.getGiftStats);
 // Stats Routes
 router.get('/stats', auth, statsController.getFemaleUserStats);
 router.get('/stats/:userId', auth, statsController.getFemaleUserStats);
+router.get('/rewards/history', auth, statsController.getRewardHistory);
 router.post('/increment-missed-calls', auth, statsController.incrementMissedCalls);
 router.post('/increment-missed-calls/:userId', auth, statsController.incrementMissedCalls);
 

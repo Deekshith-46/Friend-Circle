@@ -43,6 +43,7 @@ app.use('/admin/plans', require('./routes/adminRoutes/plan'));
 app.use('/admin/packages', require('./routes/adminRoutes/package'));
 app.use('/admin/staff', require('./routes/adminRoutes/staff'));
 app.use('/admin/users', require('./routes/adminRoutes/users'));
+app.use('/admin/rewards', require('./routes/adminRoutes/reward'));
 app.use('/admin/payouts', require('./routes/adminRoutes/payoutRoutes'));
 
 
