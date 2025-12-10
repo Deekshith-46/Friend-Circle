@@ -132,6 +132,7 @@ router.get('/gifts/stats', auth, giftController.getGiftStats);
 router.get('/stats', auth, statsController.getFemaleUserStats);
 router.get('/stats/:userId', auth, statsController.getFemaleUserStats);
 router.get('/rewards/history', auth, statsController.getRewardHistory);
+router.get('/rewards/weekly-rank', auth, statsController.getWeeklyRanking); // New route for weekly ranking
 router.post('/increment-missed-calls', auth, statsController.incrementMissedCalls);
 router.post('/increment-missed-calls/:userId', auth, statsController.incrementMissedCalls);
 

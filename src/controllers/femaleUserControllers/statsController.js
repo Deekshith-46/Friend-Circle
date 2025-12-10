@@ -107,6 +107,118 @@ exports.getRewardHistory = async (req, res) => {
   }
 };
 
+// Get female user weekly ranking
+exports.getWeeklyRanking = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    
+    // Calculate this week's date range (Monday to Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const startOfWeek = new Date(today);
+    
+    // Adjust to get Monday of this week
+    const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    startOfWeek.setDate(today.getDate() - daysFromMonday);
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    endOfWeek.setHours(23, 59, 59, 999);
+    
+    // Get all female users with their weekly earnings
+    const femaleUsers = await FemaleUser.find({ 
+      status: 'active',
+      reviewStatus: 'approved'
+    });
+    
+    // Calculate weekly earnings for each user
+    const userEarnings = [];
+    
+    for (const user of femaleUsers) {
+      try {
+        const transactions = await Transaction.find({
+          userId: user._id,
+          userType: 'female',
+          action: 'credit',
+          createdAt: {
+            $gte: startOfWeek,
+            $lt: endOfWeek
+          }
+        });
+        
+        const weeklyEarning = transactions.reduce((sum, t) => sum + t.amount, 0);
+        
+        // Only include users with earnings > 0
+        if (weeklyEarning > 0) {
+          userEarnings.push({
+            userId: user._id,
+            name: user.name,
+            earning: weeklyEarning
+          });
+        }
+      } catch (err) {
+        console.error(`Error calculating weekly earning for user ${user._id}:`, err);
+      }
+    }
+    
+    // Sort users by earnings (descending)
+    userEarnings.sort((a, b) => b.earning - a.earning);
+    
+    // Find current user's data
+    const currentUserData = userEarnings.find(u => u.userId.toString() === currentUserId.toString());
+    
+    if (!currentUserData) {
+      // User has no earnings this week
+      return res.json({
+        success: true,
+        myRank: null,
+        myWeeklyEarnings: 0,
+        nextRankEarnings: userEarnings.length > 0 ? userEarnings[0].earning : 0,
+        neededForNextRank: userEarnings.length > 0 ? userEarnings[0].earning : 0,
+        leaderboard: userEarnings.slice(0, 10).map((user, index) => ({
+          rank: index + 1,
+          name: user.name,
+          earnings: user.earning
+        }))
+      });
+    }
+    
+    // Find current user's rank (1-indexed)
+    const myRank = userEarnings.findIndex(u => u.userId.toString() === currentUserId.toString()) + 1;
+    
+    // Get next rank data
+    let nextRankEarnings = 0;
+    let neededForNextRank = 0;
+    
+    if (myRank > 1) {
+      const nextRankUser = userEarnings[myRank - 2]; // -2 because array is 0-indexed and we want the user ahead
+      nextRankEarnings = nextRankUser.earning;
+      neededForNextRank = nextRankEarnings - currentUserData.earning;
+    }
+    
+    // Create leaderboard (top 10 users)
+    const leaderboard = userEarnings.slice(0, 10).map((user, index) => {
+      return {
+        rank: index + 1,
+        name: user.userId.toString() === currentUserId.toString() ? "YOU" : user.name,
+        earnings: user.earning
+      };
+    });
+    
+    return res.json({
+      success: true,
+      myRank: myRank,
+      myWeeklyEarnings: currentUserData.earning,
+      nextRankEarnings: nextRankEarnings,
+      neededForNextRank: neededForNextRank,
+      leaderboard: leaderboard
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // Increment missed calls for a female user
 exports.incrementMissedCalls = async (req, res) => {
   try {
