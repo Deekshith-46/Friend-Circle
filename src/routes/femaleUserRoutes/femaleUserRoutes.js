@@ -67,6 +67,13 @@ router.post('/complete-profile', auth, femaleUserController.completeProfile);
 router.post('/add-info', auth, femaleUserController.addUserInfo);
 // Get Female User Profile
 router.get('/me', auth, femaleUserController.getUserProfile);  // New route to get profile
+
+// Get balance information (wallet and coin balances)
+router.get('/me/balance', auth, femaleUserController.getBalanceInfo);
+
+// Get withdrawal history
+router.get('/me/withdrawals', auth, femaleUserController.getWithdrawalHistory);
+
 // Update User Details (Name, Age, Gender, etc.)
 router.put('/update', auth, femaleUserController.addUserInfo);
 

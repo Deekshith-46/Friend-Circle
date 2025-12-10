@@ -14,5 +14,7 @@ router.delete('/me', auth, controller.deleteAdmin);
 // Admin Config Routes
 router.get('/config', auth, dynamicPermissionCheck, controller.getAdminConfig);
 router.post('/config/min-call-coins', auth, dynamicPermissionCheck, parser.none(), controller.updateMinCallCoins);
+router.post('/config/coin-to-rupee-rate', auth, dynamicPermissionCheck, parser.none(), controller.updateCoinToRupeeRate);
+router.post('/config/min-withdrawal-amount', auth, dynamicPermissionCheck, parser.none(), controller.updateMinWithdrawalAmount);
 
 module.exports = router;

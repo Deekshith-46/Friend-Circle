@@ -5,6 +5,8 @@ const MaleBlockList = require('../../models/maleUser/BlockList');
 const generateToken = require('../../utils/generateToken');
 const sendOtp = require('../../utils/sendOtp');
 const FemaleImage = require('../../models/femaleUser/Image');
+const AdminConfig = require('../../models/admin/AdminConfig');
+const WithdrawalRequest = require('../../models/common/WithdrawalRequest');
 
 // Update user interests
 exports.updateInterests = async (req, res) => {
@@ -456,6 +458,59 @@ exports.deleteUser = async (req, res) => {
     res.json({ success: true, message: 'User account deleted successfully.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get balance information for female user
+exports.getBalanceInfo = async (req, res) => {
+  try {
+    const user = await FemaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    // Get admin config for conversion rate
+    const adminConfig = await AdminConfig.getConfig();
+    const coinToRupeeRate = adminConfig.coinToRupeeConversionRate || 10; // Default 10 coins = 1 Rupee
+    
+    const walletBalance = user.walletBalance || 0;
+    const coinBalance = user.coinBalance || 0;
+    
+    const walletBalanceInRupees = Number((walletBalance / coinToRupeeRate).toFixed(2));
+    const coinBalanceInRupees = Number((coinBalance / coinToRupeeRate).toFixed(2));
+    
+    return res.json({
+      success: true,
+      data: {
+        walletBalance: {
+          coins: walletBalance,
+          rupees: walletBalanceInRupees
+        },
+        coinBalance: {
+          coins: coinBalance,
+          rupees: coinBalanceInRupees
+        },
+        conversionRate: {
+          coinsPerRupee: coinToRupeeRate
+        }
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get withdrawal history for female user
+exports.getWithdrawalHistory = async (req, res) => {
+  try {
+    const requests = await WithdrawalRequest.find({ 
+      userType: 'female', 
+      userId: req.user.id 
+    }).sort({ createdAt: -1 });
+    
+    return res.json({ success: true, data: requests });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
 

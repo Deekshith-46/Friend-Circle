@@ -139,3 +139,85 @@ exports.updateMinCallCoins = async (req, res) => {
     });
   }
 };
+
+// Update coin to rupee conversion rate
+exports.updateCoinToRupeeRate = async (req, res) => {
+  try {
+    const { coinToRupeeConversionRate } = req.body;
+    
+    // Validate input
+    if (coinToRupeeConversionRate === undefined || coinToRupeeConversionRate === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'coinToRupeeConversionRate is required' 
+      });
+    }
+    
+    const numericValue = Number(coinToRupeeConversionRate);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'coinToRupeeConversionRate must be a valid positive number' 
+      });
+    }
+    
+    // Get or create config and update coinToRupeeConversionRate
+    let config = await AdminConfig.getConfig();
+    config.coinToRupeeConversionRate = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Coin to rupee conversion rate updated successfully',
+      data: {
+        coinToRupeeConversionRate: config.coinToRupeeConversionRate
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+// Update minimum withdrawal amount
+exports.updateMinWithdrawalAmount = async (req, res) => {
+  try {
+    const { minWithdrawalAmount } = req.body;
+    
+    // Validate input
+    if (minWithdrawalAmount === undefined || minWithdrawalAmount === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'minWithdrawalAmount is required' 
+      });
+    }
+    
+    const numericValue = Number(minWithdrawalAmount);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'minWithdrawalAmount must be a valid positive number' 
+      });
+    }
+    
+    // Get or create config and update minWithdrawalAmount
+    let config = await AdminConfig.getConfig();
+    config.minWithdrawalAmount = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Minimum withdrawal amount updated successfully',
+      data: {
+        minWithdrawalAmount: config.minWithdrawalAmount
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};

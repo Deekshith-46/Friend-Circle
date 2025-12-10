@@ -6,6 +6,17 @@ const adminConfigSchema = new mongoose.Schema({
     default: 60,
     min: 0
   },
+  // Withdrawal settings
+  coinToRupeeConversionRate: {
+    type: Number,
+    default: 10, // 10 coins = 1 Rupee
+    min: 0
+  },
+  minWithdrawalAmount: {
+    type: Number,
+    default: 500, // Minimum withdrawal amount in Rupees
+    min: 0
+  },
   // Other global settings can be added here in the future
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
