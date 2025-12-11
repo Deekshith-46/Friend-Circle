@@ -25,6 +25,20 @@ const femaleUserSchema = new mongoose.Schema({
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }],
 
   kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  kycDetails: { 
+    bank: {
+      _id: { type: mongoose.Schema.Types.ObjectId },
+      name: String,
+      accountNumber: String,
+      ifsc: String,
+      verifiedAt: Date
+    },
+    upi: {
+      _id: { type: mongoose.Schema.Types.ObjectId },
+      upiId: String,
+      verifiedAt: Date
+    }
+  },
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleFollowers' }], // Fixed: should reference FemaleFollowers, not MaleUser
   femalefollowing: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleFollowing' }], // Fixed: should reference FemaleFollowing
   earnings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Earnings' }],
