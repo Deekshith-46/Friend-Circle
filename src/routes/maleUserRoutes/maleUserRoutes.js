@@ -61,6 +61,21 @@ router.put('/interests', auth, maleUserController.updateInterests);
 // Update user languages
 router.put('/languages', auth, maleUserController.updateLanguages);
 
+// Update user hobbies
+router.put('/hobbies', auth, maleUserController.updateHobbies);
+
+// Update user sports
+router.put('/sports', auth, maleUserController.updateSports);
+
+// Update user film preferences
+router.put('/film', auth, maleUserController.updateFilm);
+
+// Update user music preferences
+router.put('/music', auth, maleUserController.updateMusic);
+
+// Update user travel preferences
+router.put('/travel', auth, maleUserController.updateTravel);
+
 // Browse female users (paginated)
 router.get('/browse-females', auth, maleUserController.listFemaleUsers);
 

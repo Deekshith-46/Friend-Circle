@@ -4,6 +4,7 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const MaleBlockList = require('../../models/maleUser/BlockList');
 const FemaleBlockList = require('../../models/femaleUser/BlockList');
 const Package = require('../../models/maleUser/Package');
+const AdminConfig = require('../../models/admin/AdminConfig');
 const generateToken = require('../../utils/generateToken');  // Utility function to generate JWT token
 const generateReferralCode = require('../../utils/generateReferralCode');
 const Transaction = require('../../models/common/Transaction');
@@ -78,6 +79,196 @@ exports.updateLanguages = async (req, res) => {
       message: "Languages updated successfully",
       data: {
         languages: user.languages
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user hobbies
+exports.updateHobbies = async (req, res) => {
+  try {
+    const { hobbies } = req.body;
+    const userId = req.user._id;
+
+    if (!hobbies || !Array.isArray(hobbies)) {
+      return res.status(400).json({
+        success: false,
+        message: "Hobbies array is required"
+      });
+    }
+
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      { hobbies: hobbies },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Hobbies updated successfully",
+      data: {
+        hobbies: user.hobbies
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user sports
+exports.updateSports = async (req, res) => {
+  try {
+    const { sports } = req.body;
+    const userId = req.user._id;
+
+    if (!sports || !Array.isArray(sports)) {
+      return res.status(400).json({
+        success: false,
+        message: "Sports array is required"
+      });
+    }
+
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      { sports: sports },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Sports updated successfully",
+      data: {
+        sports: user.sports
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user film preferences
+exports.updateFilm = async (req, res) => {
+  try {
+    const { film } = req.body;
+    const userId = req.user._id;
+
+    if (!film || !Array.isArray(film)) {
+      return res.status(400).json({
+        success: false,
+        message: "Film preferences array is required"
+      });
+    }
+
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      { film: film },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Film preferences updated successfully",
+      data: {
+        film: user.film
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user music preferences
+exports.updateMusic = async (req, res) => {
+  try {
+    const { music } = req.body;
+    const userId = req.user._id;
+
+    if (!music || !Array.isArray(music)) {
+      return res.status(400).json({
+        success: false,
+        message: "Music preferences array is required"
+      });
+    }
+
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      { music: music },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Music preferences updated successfully",
+      data: {
+        music: user.music
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user travel preferences
+exports.updateTravel = async (req, res) => {
+  try {
+    const { travel } = req.body;
+    const userId = req.user._id;
+
+    if (!travel || !Array.isArray(travel)) {
+      return res.status(400).json({
+        success: false,
+        message: "Travel preferences array is required"
+      });
+    }
+
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      { travel: travel },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Travel preferences updated successfully",
+      data: {
+        travel: user.travel
       }
     });
   } catch (err) {
@@ -209,10 +400,19 @@ exports.loginUser = async (req, res) => {
 
 // Verify Login OTP
 exports.verifyLoginOtp = async (req, res) => {
-  const {  otp } = req.body;
+  const { email, otp } = req.body;
 
   try {
-    const user = await MaleUser.findOne({ otp, isVerified: true });
+    // If email is provided, look for user by both email and otp
+    // If only otp is provided, look for user by otp who is verified
+    let user;
+    if (email) {
+      user = await MaleUser.findOne({ email, otp, isVerified: true });
+    } else if (otp) {
+      user = await MaleUser.findOne({ otp, isVerified: true });
+    } else {
+      return res.status(400).json({ success: false, message: 'Email or OTP is required' });
+    }
     
     if (user) {
       // Clear OTP after successful login
@@ -241,65 +441,84 @@ exports.verifyLoginOtp = async (req, res) => {
   }
 };
 
-// Verify OTP and activate the user's account
+// Verify OTP and complete registration
 exports.verifyOtp = async (req, res) => {
-  const { otp } = req.body;
-
   try {
-    const user = await MaleUser.findOne({ otp, isVerified: false });
+    const { email, otp } = req.body;
+    
+    // If email is provided, look for user by both email and otp
+    // If only otp is provided, look for user by otp who is not yet verified
+    let user;
+    if (email) {
+      user = await MaleUser.findOne({ email, otp });
+    } else if (otp) {
+      user = await MaleUser.findOne({ otp, isVerified: false });
+    } else {
+      return res.status(400).json({ success: false, message: 'Email or OTP is required' });
+    }
+    
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+    
+    // Get admin config for referral bonus
+    const adminConfig = await AdminConfig.getConfig();
+    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
+    
+    user.isVerified = true;
+    user.isActive = true;    // Mark the user as active
+    user.otp = undefined;  // Clear OTP after verification
 
-    if (user) {
-      user.isVerified = true;  // Mark the user as verified
-      user.isActive = true;    // Mark the user as active
-      user.otp = undefined;  // Clear OTP after verification
+    // Award referral bonus once after verification
+    if (!user.referralBonusAwarded && user.referredBy) {
+      const referrer = await MaleUser.findById(user.referredBy);
+      if (referrer) {
+        // Add referral bonus to coinBalance for male users (not walletBalance)
+        referrer.coinBalance = (referrer.coinBalance || 0) + referralBonusAmount;
+        user.coinBalance = (user.coinBalance || 0) + referralBonusAmount;
+        await referrer.save();
 
-      // Award referral bonus once after verification
-      if (!user.referralBonusAwarded && user.referredBy) {
-        const referrer = await MaleUser.findById(user.referredBy);
-        if (referrer) {
-          // Add 15 coins to both
-          referrer.coinBalance = (referrer.coinBalance || 0) + 15;
-          user.coinBalance = (user.coinBalance || 0) + 15;
-          await referrer.save();
+        // Record transactions for both
+        await Transaction.create({
+          userType: 'male',
+          userId: referrer._id,
+          operationType: 'coin',
+          action: 'credit',
+          amount: referralBonusAmount,
+          message: `Referral bonus for inviting ${user.email}`,
+          balanceAfter: referrer.coinBalance,
+          createdBy: referrer._id
+        });
+        await Transaction.create({
+          userType: 'male',
+          userId: user._id,
+          operationType: 'coin',
+          action: 'credit',
+          amount: referralBonusAmount,
+          message: `Referral signup bonus using ${referrer.referralCode}`,
+          balanceAfter: user.coinBalance,
+          createdBy: user._id
+        });
 
-          // Record transactions for both
-          await Transaction.create({
-            userType: 'male',
-            userId: referrer._id,
-            operationType: 'coin',
-            action: 'credit',
-            amount: 15,
-            message: `Referral bonus for inviting ${user.email}`,
-            balanceAfter: referrer.coinBalance,
-            createdBy: referrer._id
-          });
-          await Transaction.create({
-            userType: 'male',
-            userId: user._id,
-            operationType: 'coin',
-            action: 'credit',
-            amount: 15,
-            message: `Referral signup bonus using ${referrer.referralCode}`,
-            balanceAfter: user.coinBalance,
-            createdBy: user._id
-          });
+        user.referralBonusAwarded = true;
+      }
+    }
 
-          user.referralBonusAwarded = true;
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: 'OTP verified successfully!',
+      data: {
+        token: generateToken(user._id),
+        user: {
+          id: user._id,
+          email: user.email,
+          isVerified: user.isVerified,
+          isActive: user.isActive
         }
       }
-
-      await user.save();
-
-      const token = generateToken(user._id);  // Generate JWT token
-
-      res.json({
-        success: true,
-        message: 'OTP verified successfully.',
-        token
-      });
-    } else {
-      res.status(400).json({ success: false, message: 'Invalid OTP or OTP already used.' });
-    }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -348,7 +567,11 @@ exports.buyCoins = async (req, res) => {
 // Get Male User Profile
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await MaleUser.findById(req.user.id).select('-otp -password');
+    const user = await MaleUser.findById(req.user.id)
+      .select('-otp -password')
+      .populate('interests', 'title')
+      .populate('languages', 'title');
+      
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }

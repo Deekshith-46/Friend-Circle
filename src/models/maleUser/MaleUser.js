@@ -11,6 +11,12 @@ const maleUserSchema = new mongoose.Schema({
   gender: { type: String, enum: ['male', 'female', 'other'] },
   interests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Interest' }],
   languages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Language' }],
+  // New fields for manually entered preferences
+  hobbies: [{ type: String }],
+  sports: [{ type: String }],
+  film: [{ type: String }],
+  music: [{ type: String }],
+  travel: [{ type: String }],
   relationshipGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'RelationshipGoal' }],
   religion: { type: mongoose.Schema.Types.ObjectId, ref: 'Religion' },
   height: { type: String },

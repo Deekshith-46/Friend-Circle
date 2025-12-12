@@ -17,6 +17,12 @@ const femaleUserSchema = new mongoose.Schema({
   videoUrl: String, // URL for the 10-second live video
   interests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Interest' }],
   languages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Language' }],
+  // New fields for manually entered preferences
+  hobbies: [{ type: String }],
+  sports: [{ type: String }],
+  film: [{ type: String }],
+  music: [{ type: String }],
+  travel: [{ type: String }],
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   reviewStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
   isVerified: { type: Boolean, default: false },

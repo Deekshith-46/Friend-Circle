@@ -17,4 +17,10 @@ router.post('/config/min-call-coins', auth, dynamicPermissionCheck, parser.none(
 router.post('/config/coin-to-rupee-rate', auth, dynamicPermissionCheck, parser.none(), controller.updateCoinToRupeeRate);
 router.post('/config/min-withdrawal-amount', auth, dynamicPermissionCheck, parser.none(), controller.updateMinWithdrawalAmount);
 
+// Referral Bonus Routes
+router.get('/config/referral-bonus', auth, dynamicPermissionCheck, controller.getReferralBonus);
+router.post('/config/referral-bonus', auth, dynamicPermissionCheck, parser.none(), controller.setReferralBonus);
+router.put('/config/referral-bonus', auth, dynamicPermissionCheck, parser.none(), controller.updateReferralBonus);
+router.delete('/config/referral-bonus', auth, dynamicPermissionCheck, controller.deleteReferralBonus);
+
 module.exports = router;

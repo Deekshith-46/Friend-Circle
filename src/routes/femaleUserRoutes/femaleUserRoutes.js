@@ -61,7 +61,7 @@ router.post('/verify-login-otp', femaleUserController.verifyLoginOtp);
 router.post('/verify-otp', femaleUserController.verifyOtp);
 
 // Complete Profile after OTP Verification (REQUIRED before login)
-router.post('/complete-profile', auth, femaleUserController.completeProfile);
+router.post('/complete-profile', auth, femaleUserController.completeUserProfile);
 
 // Add Extra Info after OTP Verification
 router.post('/add-info', auth, femaleUserController.addUserInfo);
@@ -82,6 +82,21 @@ router.put('/interests', auth, femaleUserController.updateInterests);
 
 // Update user languages
 router.put('/languages', auth, femaleUserController.updateLanguages);
+
+// Update user hobbies
+router.put('/hobbies', auth, femaleUserController.updateHobbies);
+
+// Update user sports
+router.put('/sports', auth, femaleUserController.updateSports);
+
+// Update user film preferences
+router.put('/film', auth, femaleUserController.updateFilm);
+
+// Update user music preferences
+router.put('/music', auth, femaleUserController.updateMusic);
+
+// Update user travel preferences
+router.put('/travel', auth, femaleUserController.updateTravel);
 
 // Online Status Toggle
 router.post('/toggle-online-status', auth, femaleUserController.toggleOnlineStatus);

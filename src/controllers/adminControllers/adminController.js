@@ -221,3 +221,114 @@ exports.updateMinWithdrawalAmount = async (req, res) => {
     });
   }
 };
+
+// Set/Update referral bonus
+exports.setReferralBonus = async (req, res) => {
+  try {
+    const { bonus } = req.body; // coins to give
+
+    // Validate input
+    if (bonus === undefined || bonus === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'bonus is required' 
+      });
+    }
+    
+    const numericValue = Number(bonus);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'bonus must be a valid non-negative number' 
+      });
+    }
+
+    const config = await AdminConfig.getConfig();
+    config.referralBonus = numericValue;
+    await config.save();
+
+    res.json({
+      success: true,
+      message: "Referral bonus updated",
+      data: config
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get referral bonus
+exports.getReferralBonus = async (req, res) => {
+  try {
+    const config = await AdminConfig.getConfig();
+    return res.json({
+      success: true,
+      data: {
+        referralBonus: config.referralBonus || 100 // Default value if not set
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+// Update referral bonus (alternative to POST)
+exports.updateReferralBonus = async (req, res) => {
+  try {
+    const { bonus } = req.body;
+
+    // Validate input
+    if (bonus === undefined || bonus === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'bonus is required' 
+      });
+    }
+    
+    const numericValue = Number(bonus);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'bonus must be a valid non-negative number' 
+      });
+    }
+
+    const config = await AdminConfig.getConfig();
+    config.referralBonus = numericValue;
+    await config.save();
+
+    res.json({
+      success: true,
+      message: "Referral bonus updated",
+      data: {
+        referralBonus: config.referralBonus
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete/reset referral bonus (set to default value)
+exports.deleteReferralBonus = async (req, res) => {
+  try {
+    const config = await AdminConfig.getConfig();
+    const previousBonus = config.referralBonus;
+    config.referralBonus = 100; // Reset to default value
+    await config.save();
+
+    res.json({
+      success: true,
+      message: "Referral bonus reset to default value",
+      data: {
+        previousBonus: previousBonus,
+        newBonus: config.referralBonus
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};

@@ -84,6 +84,196 @@ exports.updateLanguages = async (req, res) => {
   }
 };
 
+// Update user hobbies
+exports.updateHobbies = async (req, res) => {
+  try {
+    const { hobbies } = req.body;
+    const userId = req.user._id;
+
+    if (!hobbies || !Array.isArray(hobbies)) {
+      return res.status(400).json({
+        success: false,
+        message: "Hobbies array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { hobbies: hobbies },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Hobbies updated successfully",
+      data: {
+        hobbies: user.hobbies
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user sports
+exports.updateSports = async (req, res) => {
+  try {
+    const { sports } = req.body;
+    const userId = req.user._id;
+
+    if (!sports || !Array.isArray(sports)) {
+      return res.status(400).json({
+        success: false,
+        message: "Sports array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { sports: sports },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Sports updated successfully",
+      data: {
+        sports: user.sports
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user film preferences
+exports.updateFilm = async (req, res) => {
+  try {
+    const { film } = req.body;
+    const userId = req.user._id;
+
+    if (!film || !Array.isArray(film)) {
+      return res.status(400).json({
+        success: false,
+        message: "Film preferences array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { film: film },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Film preferences updated successfully",
+      data: {
+        film: user.film
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user music preferences
+exports.updateMusic = async (req, res) => {
+  try {
+    const { music } = req.body;
+    const userId = req.user._id;
+
+    if (!music || !Array.isArray(music)) {
+      return res.status(400).json({
+        success: false,
+        message: "Music preferences array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { music: music },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Music preferences updated successfully",
+      data: {
+        music: user.music
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user travel preferences
+exports.updateTravel = async (req, res) => {
+  try {
+    const { travel } = req.body;
+    const userId = req.user._id;
+
+    if (!travel || !Array.isArray(travel)) {
+      return res.status(400).json({
+        success: false,
+        message: "Travel preferences array is required"
+      });
+    }
+
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      { travel: travel },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Travel preferences updated successfully",
+      data: {
+        travel: user.travel
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
 // User Registration (Email and Mobile Number)
 exports.registerUser = async (req, res) => {
   const { email, mobileNumber, referralCode } = req.body;
@@ -283,7 +473,7 @@ exports.verifyOtp = async (req, res) => {
 
 // Add Extra Information (Name, Age, Gender, etc.)
 exports.addUserInfo = async (req, res) => {
-  const { name, age, gender, bio, videoUrl, interests, languages } = req.body; // images is managed via upload endpoint
+  const { name, age, gender, bio, videoUrl, interests, languages, hobbies, sports, film, music, travel } = req.body; // images is managed via upload endpoint
   try {
     const user = await FemaleUser.findById(req.user.id);
     user.name = name;
@@ -293,6 +483,11 @@ exports.addUserInfo = async (req, res) => {
     user.videoUrl = videoUrl;
     user.interests = interests;
     user.languages = languages;
+    if (hobbies) user.hobbies = hobbies;
+    if (sports) user.sports = sports;
+    if (film) user.film = film;
+    if (music) user.music = music;
+    if (travel) user.travel = travel;
     await user.save();
     res.json({ success: true, data: user });
   } catch (err) {
@@ -300,17 +495,21 @@ exports.addUserInfo = async (req, res) => {
   }
 };
 
-// Complete Profile - Must be called after OTP verification
-// This marks the profile as complete and ready for admin review
-exports.completeProfile = async (req, res) => {
-  const { name, age, gender, bio, interests, languages } = req.body;
-  
+// Complete user profile after OTP verification
+exports.completeUserProfile = async (req, res) => {
   try {
-    const user = await FemaleUser.findById(req.user.id).populate('images');
+    const userId = req.user._id;
+    const { name, age, gender, bio, interests, languages, hobbies, sports, film, music, travel } = req.body;
     
+    // Find the user
+    const user = await FemaleUser.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
+    
+    // Get admin config for referral bonus
+    const adminConfig = await AdminConfig.getConfig();
+    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
 
     // Check if profile is already completed
     if (user.profileCompleted) {
@@ -351,53 +550,60 @@ exports.completeProfile = async (req, res) => {
     user.bio = bio;
     if (interests) user.interests = interests;
     if (languages) user.languages = languages;
+    if (hobbies) user.hobbies = hobbies;
+    if (sports) user.sports = sports;
+    if (film) user.film = film;
+    if (music) user.music = music;
+    if (travel) user.travel = travel;
     user.profileCompleted = true;
     user.reviewStatus = 'pending'; // Set review status to pending for admin approval
 
     // Award referral bonus after profile completion
     if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
       const Transaction = require('../../models/common/Transaction');
-      const FEMALE_BONUS = 15; // coins to both
-
+      
       if (user.referredByFemale) {
         const FemaleModel = require('../../models/femaleUser/FemaleUser');
         const referrer = await FemaleModel.findById(user.referredByFemale);
         if (referrer) {
-          referrer.coinBalance = (referrer.coinBalance || 0) + FEMALE_BONUS;
-          user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+          // Add referral bonus to walletBalance instead of coinBalance
+          referrer.walletBalance = (referrer.walletBalance || 0) + referralBonusAmount;
+          user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
           await referrer.save();
+          
           await Transaction.create({ 
             userType: 'female', 
             userId: referrer._id, 
-            operationType: 'coin', 
+            operationType: 'wallet', 
             action: 'credit', 
-            amount: FEMALE_BONUS, 
+            amount: referralBonusAmount, 
             message: `Referral bonus for inviting ${user.email}`, 
-            balanceAfter: referrer.coinBalance, 
+            balanceAfter: referrer.walletBalance, 
             createdBy: referrer._id 
           });
           await Transaction.create({ 
             userType: 'female', 
             userId: user._id, 
-            operationType: 'coin', 
+            operationType: 'wallet', 
             action: 'credit', 
-            amount: FEMALE_BONUS, 
+            amount: referralBonusAmount, 
             message: `Referral signup bonus using referral code`, 
-            balanceAfter: user.coinBalance, 
+            balanceAfter: user.walletBalance, 
             createdBy: user._id 
           });
           user.referralBonusAwarded = true;
         }
       } else if (user.referredByAgency) {
-        user.coinBalance = (user.coinBalance || 0) + FEMALE_BONUS;
+        // Add referral bonus to walletBalance instead of coinBalance
+        user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
         await Transaction.create({ 
           userType: 'female', 
           userId: user._id, 
-          operationType: 'coin', 
+          operationType: 'wallet', 
           action: 'credit', 
-          amount: FEMALE_BONUS, 
+          amount: referralBonusAmount, 
           message: `Referral signup bonus via agency`, 
-          balanceAfter: user.coinBalance, 
+          balanceAfter: user.walletBalance, 
           createdBy: user._id 
         });
         user.referralBonusAwarded = true;
@@ -422,7 +628,12 @@ exports.completeProfile = async (req, res) => {
 // Get Female User Profile
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await FemaleUser.findById(req.user.id).select('-otp').populate('images'); // Exclude OTP and populate images
+    const user = await FemaleUser.findById(req.user.id)
+      .select('-otp')
+      .populate('images')
+      .populate('interests', 'title')
+      .populate('languages', 'title');
+      
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -434,7 +645,7 @@ exports.getUserProfile = async (req, res) => {
 
 // Update Female User Info
 exports.updateUserInfo = async (req, res) => {
-  const { name, age, gender, bio, videoUrl, interests, languages } = req.body; // images is managed via upload endpoint
+  const { name, age, gender, bio, videoUrl, interests, languages, hobbies, sports, film, music, travel } = req.body; // images is managed via upload endpoint
   try {
     const user = await FemaleUser.findById(req.user.id);
     if (name) user.name = name;
@@ -444,6 +655,11 @@ exports.updateUserInfo = async (req, res) => {
     if (videoUrl) user.videoUrl = videoUrl;
     if (interests) user.interests = interests;
     if (languages) user.languages = languages;
+    if (hobbies) user.hobbies = hobbies;
+    if (sports) user.sports = sports;
+    if (film) user.film = film;
+    if (music) user.music = music;
+    if (travel) user.travel = travel;
     await user.save();
     res.json({ success: true, data: user });
   } catch (err) {
