@@ -4,18 +4,28 @@ const AdminConfig = require('../../models/admin/AdminConfig');
 const bcrypt = require('bcryptjs');
 const generateToken = require('../../utils/generateToken');
 const createAuditLog = require('../../utils/createAuditLog');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Login Admin or Staff (unified login with user type selection)
 exports.loginAdmin = async (req, res) => {
   try {
     const { email, password, userType } = req.body;
     
+    // Validate email
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+    
     if (userType === 'admin') {
       const admin = await AdminUser.findOne({ email });
-      if (!admin) return res.status(400).json({ success: false, message: 'Invalid credentials' });
+      if (!admin) return res.status(400).json({ success: false, message: messages.ADMIN.INVALID_CREDENTIALS });
 
       const isMatch = await bcrypt.compare(password, admin.passwordHash);
-      if (!isMatch) return res.status(400).json({ success: false, message: 'Invalid credentials' });
+      if (!isMatch) return res.status(400).json({ success: false, message: messages.ADMIN.INVALID_CREDENTIALS });
 
       res.json({
         success: true,
@@ -26,10 +36,10 @@ exports.loginAdmin = async (req, res) => {
       });
     } else if (userType === 'staff') {
       const staff = await Staff.findOne({ email, status: 'publish' });
-      if (!staff) return res.status(400).json({ success: false, message: 'Invalid credentials or staff not active' });
+      if (!staff) return res.status(400).json({ success: false, message: messages.ADMIN.INVALID_CREDENTIALS_STAFF });
 
       const isMatch = await bcrypt.compare(password, staff.passwordHash);
-      if (!isMatch) return res.status(400).json({ success: false, message: 'Invalid credentials' });
+      if (!isMatch) return res.status(400).json({ success: false, message: messages.ADMIN.INVALID_CREDENTIALS });
 
       res.json({
         success: true,
@@ -39,7 +49,7 @@ exports.loginAdmin = async (req, res) => {
         }
       });
     } else {
-      return res.status(400).json({ success: false, message: 'Invalid user type' });
+      return res.status(400).json({ success: false, message: messages.ADMIN.INVALID_USER_TYPE });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -77,7 +87,8 @@ exports.deleteAdmin = async (req, res) => {
   try {
     await AdminUser.findByIdAndDelete(req.admin._id);
     await createAuditLog(req.admin._id, 'DELETE', 'AdminUser', req.admin._id, {});
-    res.json({ success: true, message: 'Admin account deleted' });
+
+    res.json({ success: true, message: messages.USER.USER_DELETED });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -108,7 +119,7 @@ exports.updateMinCallCoins = async (req, res) => {
     if (minCallCoins === undefined || minCallCoins === null) {
       return res.status(400).json({ 
         success: false, 
-        message: 'minCallCoins is required' 
+        message: messages.ADMIN.MIN_CALL_COINS_REQUIRED 
       });
     }
     
@@ -116,7 +127,7 @@ exports.updateMinCallCoins = async (req, res) => {
     if (!Number.isFinite(numericValue) || numericValue < 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'minCallCoins must be a valid non-negative number' 
+        message: messages.ADMIN.MIN_CALL_COINS_INVALID 
       });
     }
     
@@ -127,7 +138,7 @@ exports.updateMinCallCoins = async (req, res) => {
     
     return res.json({
       success: true,
-      message: 'Minimum call coins setting updated successfully',
+      message: messages.ADMIN.MIN_CALL_COINS_UPDATED,
       data: {
         minCallCoins: config.minCallCoins
       }
@@ -149,7 +160,7 @@ exports.updateCoinToRupeeRate = async (req, res) => {
     if (coinToRupeeConversionRate === undefined || coinToRupeeConversionRate === null) {
       return res.status(400).json({ 
         success: false, 
-        message: 'coinToRupeeConversionRate is required' 
+        message: messages.ADMIN.CONVERSION_RATE_REQUIRED 
       });
     }
     
@@ -157,7 +168,7 @@ exports.updateCoinToRupeeRate = async (req, res) => {
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'coinToRupeeConversionRate must be a valid positive number' 
+        message: messages.ADMIN.CONVERSION_RATE_INVALID 
       });
     }
     
@@ -168,7 +179,7 @@ exports.updateCoinToRupeeRate = async (req, res) => {
     
     return res.json({
       success: true,
-      message: 'Coin to rupee conversion rate updated successfully',
+      message: messages.ADMIN.CONVERSION_RATE_UPDATED,
       data: {
         coinToRupeeConversionRate: config.coinToRupeeConversionRate
       }
@@ -190,7 +201,7 @@ exports.updateMinWithdrawalAmount = async (req, res) => {
     if (minWithdrawalAmount === undefined || minWithdrawalAmount === null) {
       return res.status(400).json({ 
         success: false, 
-        message: 'minWithdrawalAmount is required' 
+        message: messages.ADMIN.MIN_WITHDRAWAL_REQUIRED 
       });
     }
     
@@ -198,7 +209,7 @@ exports.updateMinWithdrawalAmount = async (req, res) => {
     if (!Number.isFinite(numericValue) || numericValue <= 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'minWithdrawalAmount must be a valid positive number' 
+        message: messages.ADMIN.MIN_WITHDRAWAL_INVALID 
       });
     }
     
@@ -209,7 +220,7 @@ exports.updateMinWithdrawalAmount = async (req, res) => {
     
     return res.json({
       success: true,
-      message: 'Minimum withdrawal amount updated successfully',
+      message: messages.ADMIN.MIN_WITHDRAWAL_UPDATED,
       data: {
         minWithdrawalAmount: config.minWithdrawalAmount
       }
@@ -231,7 +242,7 @@ exports.setReferralBonus = async (req, res) => {
     if (bonus === undefined || bonus === null) {
       return res.status(400).json({ 
         success: false, 
-        message: 'bonus is required' 
+        message: messages.ADMIN.BONUS_REQUIRED 
       });
     }
     
@@ -239,7 +250,7 @@ exports.setReferralBonus = async (req, res) => {
     if (!Number.isFinite(numericValue) || numericValue < 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'bonus must be a valid non-negative number' 
+        message: messages.ADMIN.BONUS_INVALID 
       });
     }
 
@@ -249,7 +260,7 @@ exports.setReferralBonus = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Referral bonus updated",
+      message: messages.ADMIN.BONUS_UPDATED,
       data: config
     });
   } catch (err) {
@@ -284,7 +295,7 @@ exports.updateReferralBonus = async (req, res) => {
     if (bonus === undefined || bonus === null) {
       return res.status(400).json({ 
         success: false, 
-        message: 'bonus is required' 
+        message: messages.ADMIN.BONUS_REQUIRED 
       });
     }
     
@@ -292,7 +303,7 @@ exports.updateReferralBonus = async (req, res) => {
     if (!Number.isFinite(numericValue) || numericValue < 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'bonus must be a valid non-negative number' 
+        message: messages.ADMIN.BONUS_INVALID 
       });
     }
 
@@ -302,7 +313,7 @@ exports.updateReferralBonus = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Referral bonus updated",
+      message: messages.ADMIN.BONUS_UPDATED,
       data: {
         referralBonus: config.referralBonus
       }
@@ -322,7 +333,7 @@ exports.deleteReferralBonus = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Referral bonus reset to default value",
+      message: messages.ADMIN.BONUS_RESET,
       data: {
         previousBonus: previousBonus,
         newBonus: config.referralBonus

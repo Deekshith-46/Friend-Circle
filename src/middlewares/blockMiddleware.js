@@ -1,5 +1,6 @@
 const MaleBlockList = require('../models/maleUser/BlockList');
 const FemaleBlockList = require('../models/femaleUser/BlockList');
+const messages = require('../validations/messages');
 
 // Middleware to check if users have blocked each other
 const checkBlockStatus = async (userId, targetUserId, userType, targetUserType) => {
@@ -92,7 +93,7 @@ const preventBlockedInteraction = async (req, res, next) => {
     if (blockStatus.isBlocked) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Blocked users cannot interact with each other.' 
+        message: messages.BLOCK.BLOCKED_CANNOT_INTERACT 
       });
     }
     

@@ -9,6 +9,8 @@ const generateToken = require('../../utils/generateToken');  // Utility function
 const generateReferralCode = require('../../utils/generateReferralCode');
 const Transaction = require('../../models/common/Transaction');
 const sendOtp = require('../../utils/sendOtp');  // Utility function to send OTP via email
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Update user interests
 exports.updateInterests = async (req, res) => {
@@ -19,7 +21,7 @@ exports.updateInterests = async (req, res) => {
     if (!interestIds || !Array.isArray(interestIds)) {
       return res.status(400).json({
         success: false,
-        message: "Interest IDs array is required"
+        message: messages.PROFILE.INTEREST_REQUIRED
       });
     }
 
@@ -32,7 +34,7 @@ exports.updateInterests = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -57,7 +59,7 @@ exports.updateLanguages = async (req, res) => {
     if (!languageIds || !Array.isArray(languageIds)) {
       return res.status(400).json({
         success: false,
-        message: "Language IDs array is required"
+        message: messages.PROFILE.LANGUAGE_REQUIRED
       });
     }
 
@@ -70,7 +72,7 @@ exports.updateLanguages = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -95,7 +97,7 @@ exports.updateHobbies = async (req, res) => {
     if (!hobbies || !Array.isArray(hobbies)) {
       return res.status(400).json({
         success: false,
-        message: "Hobbies array is required"
+        message: messages.PROFILE.HOBBIES_REQUIRED
       });
     }
 
@@ -108,7 +110,7 @@ exports.updateHobbies = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -133,7 +135,7 @@ exports.updateSports = async (req, res) => {
     if (!sports || !Array.isArray(sports)) {
       return res.status(400).json({
         success: false,
-        message: "Sports array is required"
+        message: messages.PROFILE.SPORTS_REQUIRED
       });
     }
 
@@ -146,7 +148,7 @@ exports.updateSports = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -171,7 +173,7 @@ exports.updateFilm = async (req, res) => {
     if (!film || !Array.isArray(film)) {
       return res.status(400).json({
         success: false,
-        message: "Film preferences array is required"
+        message: messages.PROFILE.FILM_REQUIRED
       });
     }
 
@@ -184,7 +186,7 @@ exports.updateFilm = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -209,7 +211,7 @@ exports.updateMusic = async (req, res) => {
     if (!music || !Array.isArray(music)) {
       return res.status(400).json({
         success: false,
-        message: "Music preferences array is required"
+        message: messages.PROFILE.MUSIC_REQUIRED
       });
     }
 
@@ -222,7 +224,7 @@ exports.updateMusic = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -247,7 +249,7 @@ exports.updateTravel = async (req, res) => {
     if (!travel || !Array.isArray(travel)) {
       return res.status(400).json({
         success: false,
-        message: "Travel preferences array is required"
+        message: messages.PROFILE.TRAVEL_REQUIRED
       });
     }
 
@@ -260,7 +262,7 @@ exports.updateTravel = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -283,6 +285,14 @@ exports.registerUser = async (req, res) => {
   const otp = Math.floor(1000 + Math.random() * 9000);  // Generate 4-digit OTP
 
   try {
+    // Validate email
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+
     // Check if the email is already registered
     const existingUser = await MaleUser.findOne({ email });
     
@@ -307,7 +317,7 @@ exports.registerUser = async (req, res) => {
         
         return res.status(201).json({
           success: true,
-          message: 'OTP sent to your email for verification.',
+          message: messages.AUTH.OTP_SENT_EMAIL,
           referralCode: existingUser.referralCode,
           otp: otp // For testing purposes
         });
@@ -315,7 +325,7 @@ exports.registerUser = async (req, res) => {
         // User is already verified and active
         return res.status(400).json({ 
           success: false, 
-          message: 'User already exists and is verified. Please login instead.' 
+          message: messages.AUTH.USER_ALREADY_EXISTS
         });
       }
     }
@@ -351,7 +361,7 @@ exports.registerUser = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'OTP sent to your email.',
+      message: messages.AUTH.OTP_SENT_EMAIL,
       referralCode: newUser.referralCode,
       otp: otp // For testing purposes
     });
@@ -365,19 +375,27 @@ exports.loginUser = async (req, res) => {
   const { email } = req.body;
 
   try {
+    // Validate email
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+
     // Check if the user exists
     const user = await MaleUser.findOne({ email });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
 
     // Check if user is verified
     if (!user.isVerified) {
-      return res.status(400).json({ success: false, message: 'Please verify your account first.' });
+      return res.status(400).json({ success: false, message: messages.AUTH.ACCOUNT_NOT_VERIFIED });
     }
     // Check if user is active
     if (user.status === 'inactive') {
-      return res.status(403).json({ success: false, message: 'Your account has been deactivated by admin or staff.' });
+      return res.status(403).json({ success: false, message: messages.AUTH.ACCOUNT_DEACTIVATED });
     }
 
     // Generate new OTP for login
@@ -390,7 +408,7 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'OTP sent to your email for login verification.',
+      message: messages.AUTH.OTP_SENT_LOGIN,
       otp: otp // For testing purposes
     });
   } catch (err) {
@@ -403,6 +421,14 @@ exports.verifyLoginOtp = async (req, res) => {
   const { email, otp } = req.body;
 
   try {
+    // Validate email if provided
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+
     // If email is provided, look for user by both email and otp
     // If only otp is provided, look for user by otp who is verified
     let user;
@@ -411,7 +437,7 @@ exports.verifyLoginOtp = async (req, res) => {
     } else if (otp) {
       user = await MaleUser.findOne({ otp, isVerified: true });
     } else {
-      return res.status(400).json({ success: false, message: 'Email or OTP is required' });
+      return res.status(400).json({ success: false, message: messages.COMMON.EMAIL_OR_OTP_REQUIRED });
     }
     
     if (user) {
@@ -424,7 +450,7 @@ exports.verifyLoginOtp = async (req, res) => {
 
       res.json({
         success: true,
-        message: 'Login successful.',
+        message: messages.AUTH.LOGIN_SUCCESS,
         token,
         user: {
           id: user._id,
@@ -434,7 +460,7 @@ exports.verifyLoginOtp = async (req, res) => {
         }
       });
     } else {
-      res.status(400).json({ success: false, message: 'Invalid OTP or user not found.' });
+      res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -446,6 +472,14 @@ exports.verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     
+    // Validate email if provided
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+
     // If email is provided, look for user by both email and otp
     // If only otp is provided, look for user by otp who is not yet verified
     let user;
@@ -454,11 +488,11 @@ exports.verifyOtp = async (req, res) => {
     } else if (otp) {
       user = await MaleUser.findOne({ otp, isVerified: false });
     } else {
-      return res.status(400).json({ success: false, message: 'Email or OTP is required' });
+      return res.status(400).json({ success: false, message: messages.COMMON.EMAIL_OR_OTP_REQUIRED });
     }
     
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+      return res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
     }
     
     // Get admin config for referral bonus
@@ -508,7 +542,7 @@ exports.verifyOtp = async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'OTP verified successfully!',
+      message: messages.AUTH.OTP_VERIFIED,
       data: {
         token: generateToken(user._id),
         user: {
@@ -528,7 +562,7 @@ exports.verifyOtp = async (req, res) => {
 exports.uploadImage = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: 'No images uploaded.' });
+      return res.status(400).json({ success: false, message: messages.IMAGE.NO_IMAGES });
     }
 
     const uploadedUrls = req.files.map((f) => f.path);
@@ -544,7 +578,7 @@ exports.uploadImage = async (req, res) => {
     user.images = Array.isArray(user.images) ? [...user.images, ...uploadedUrls] : uploadedUrls;
     await user.save();
 
-    res.json({ success: true, message: 'Images uploaded successfully.', urls: uploadedUrls });
+    res.json({ success: true, message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, urls: uploadedUrls });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -558,7 +592,7 @@ exports.buyCoins = async (req, res) => {
     const maleUser = await MaleUser.findById(req.user.id);
     maleUser.balance += selectedPackage.coins;
     await maleUser.save();
-    res.json({ success: true, message: `Coins added: ${selectedPackage.coins}` });
+    res.json({ success: true, message: messages.COINS.COINS_ADDED(selectedPackage.coins) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -573,7 +607,7 @@ exports.getUserProfile = async (req, res) => {
       .populate('languages', 'title');
       
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
     res.json({ success: true, data: user });
   } catch (err) {
@@ -634,10 +668,10 @@ exports.deleteImage = async (req, res) => {
     const { imageId } = req.params;
     const imageDoc = await Image.findById(imageId);
     if (!imageDoc) {
-      return res.status(404).json({ success: false, message: 'Image not found' });
+      return res.status(404).json({ success: false, message: messages.USER.IMAGE_NOT_FOUND });
     }
     if (String(imageDoc.maleUserId) !== String(req.user.id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized to delete this image' });
+      return res.status(403).json({ success: false, message: messages.USER.NOT_AUTHORIZED_DELETE_IMAGE });
     }
     await Image.deleteOne({ _id: imageDoc._id });
 
@@ -650,7 +684,7 @@ exports.deleteImage = async (req, res) => {
       }
     } catch (_) {}
 
-    return res.json({ success: true, message: 'Image deleted successfully' });
+    return res.json({ success: true, message: messages.IMAGE.IMAGE_DELETED });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

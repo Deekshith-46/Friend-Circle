@@ -1,4 +1,6 @@
 const AgencyKYC = require('../../models/agency/KYC');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Submit KYC for agency
 exports.submitKYC = async (req, res) => {
@@ -11,7 +13,7 @@ exports.submitKYC = async (req, res) => {
       upiId 
     });
     await kyc.save();
-    res.json({ success: true, message: "KYC submitted for verification." });
+    res.json({ success: true, message: messages.AGENCY.KYC_SUBMITTED });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

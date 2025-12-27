@@ -4,15 +4,17 @@ const AgencyUser = require('../../models/agency/AgencyUser');
 const Transaction = require('../../models/common/Transaction');
 const razorpay = require('../../config/razorpay');
 const AdminConfig = require('../../models/admin/AdminConfig');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 function ensureKycVerified(user, userType) {
   if (userType === 'female') {
     if (!user || user.kycStatus !== 'approved') {
-      return 'KYC not approved for female user';
+      return messages.VALIDATION.KYC_NOT_APPROVED('female');
     }
   } else if (userType === 'agency') {
     if (!user || user.kycStatus !== 'approved') {
-      return 'KYC not approved for agency user';
+      return messages.VALIDATION.KYC_NOT_APPROVED('agency');
     }
   }
   return null;
@@ -26,18 +28,18 @@ exports.createWithdrawalRequest = async (req, res) => {
     
     // Validate input - either coins or rupees must be provided
     if ((!coins && !rupees) || (coins && rupees)) {
-      return res.status(400).json({ success: false, message: 'Either coins or rupees amount is required (not both)' });
+      return res.status(400).json({ success: false, message: messages.VALIDATION.AMOUNT_REQUIRED });
     }
     
     if (coins && (isNaN(coins) || coins <= 0)) {
-      return res.status(400).json({ success: false, message: 'Invalid coin amount' });
+      return res.status(400).json({ success: false, message: messages.VALIDATION.INVALID_COIN_AMOUNT });
     }
     
     if (rupees && (isNaN(rupees) || rupees <= 0)) {
-      return res.status(400).json({ success: false, message: 'Invalid rupee amount' });
+      return res.status(400).json({ success: false, message: messages.VALIDATION.INVALID_RUPEE_AMOUNT });
     }
     
-    if (!['bank', 'upi'].includes(payoutMethod)) return res.status(400).json({ success: false, message: 'Invalid payout method' });
+    if (!['bank', 'upi'].includes(payoutMethod)) return res.status(400).json({ success: false, message: messages.VALIDATION.INVALID_PAYOUT_METHOD });
     
     const user = userType === 'female' ? await FemaleUser.findById(req.user.id) : await AgencyUser.findById(req.user.id);
     const kycError = ensureKycVerified(user, userType);
@@ -48,7 +50,7 @@ exports.createWithdrawalRequest = async (req, res) => {
     if (userType === 'female') {
       if (payoutMethod === 'bank') {
         if (!user.kycDetails || !user.kycDetails.bank || !user.kycDetails.bank.verifiedAt) {
-          return res.status(400).json({ success: false, message: 'Bank details not verified in KYC' });
+          return res.status(400).json({ success: false, message: messages.VALIDATION.BANK_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {
           accountHolderName: user.kycDetails.bank.name,
@@ -57,7 +59,7 @@ exports.createWithdrawalRequest = async (req, res) => {
         };
       } else if (payoutMethod === 'upi') {
         if (!user.kycDetails || !user.kycDetails.upi || !user.kycDetails.upi.verifiedAt) {
-          return res.status(400).json({ success: false, message: 'UPI details not verified in KYC' });
+          return res.status(400).json({ success: false, message: messages.VALIDATION.UPI_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {
           vpa: user.kycDetails.upi.upiId
@@ -65,7 +67,7 @@ exports.createWithdrawalRequest = async (req, res) => {
       }
     } else {
       // For agency users, still require manual payoutDetails for backward compatibility
-      if (!req.body.payoutDetails) return res.status(400).json({ success: false, message: 'Payout details required' });
+      if (!req.body.payoutDetails) return res.status(400).json({ success: false, message: messages.VALIDATION.PAYOUT_DETAILS_REQUIRED });
       payoutDetails = req.body.payoutDetails;
     }
     
@@ -89,7 +91,7 @@ exports.createWithdrawalRequest = async (req, res) => {
     if (amountInRupees < minWithdrawalAmount) {
       return res.status(400).json({ 
         success: false, 
-        message: `Minimum withdrawal amount is ₹${minWithdrawalAmount}`,
+        message: messages.WITHDRAWAL.MIN_WITHDRAWAL_AMOUNT(minWithdrawalAmount),
         data: {
           minWithdrawalAmount: minWithdrawalAmount,
           requestedAmount: amountInRupees
@@ -109,7 +111,7 @@ exports.createWithdrawalRequest = async (req, res) => {
     if (userBalance < coinsRequested) {
       return res.status(400).json({ 
         success: false, 
-        message: `Insufficient ${userType === 'female' ? 'wallet' : 'coin'} balance`,
+        message: messages.WITHDRAWAL.INSUFFICIENT_BALANCE(userType === 'female' ? 'wallet' : 'coin'),
         data: {
           available: userBalance,
           required: coinsRequested,
@@ -151,7 +153,7 @@ exports.createWithdrawalRequest = async (req, res) => {
     
     return res.status(201).json({ 
       success: true, 
-      message: 'Withdrawal request created successfully. Your payment will be credited in 24 hours.',
+      message: messages.WITHDRAWAL.WITHDRAWAL_SUCCESS,
       data: request,
       countdownTimer: 24 * 60 * 60 // 24 hours in seconds for frontend display
     });
@@ -210,7 +212,7 @@ exports.adminApproveWithdrawal = async (req, res) => {
     if (!razorpay) {
       return res.status(500).json({ 
         success: false, 
-        message: 'Razorpay is not configured. Please check environment variables.' 
+        message: messages.PAYMENT.RAZORPAY_NOT_CONFIGURED
       });
     }
     
@@ -223,7 +225,7 @@ exports.adminApproveWithdrawal = async (req, res) => {
     // Fetch user (coins already debited at request time)
     const userModel = request.userType === 'female' ? FemaleUser : AgencyUser;
     const user = await userModel.findById(request.userId);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     // No further debit here to avoid double deduction
     
     // For now, let's skip the Razorpay integration and just approve the request
@@ -232,7 +234,7 @@ exports.adminApproveWithdrawal = async (req, res) => {
     request.processedBy = req.admin?._id || req.staff?._id;
     await request.save();
     
-    return res.json({ success: true, message: 'Withdrawal approved successfully (Razorpay integration temporarily bypassed)', data: request });
+    return res.json({ success: true, message: messages.WITHDRAWAL.WITHDRAWAL_APPROVED, data: request });
   } catch (err) {
     console.error('Error approving withdrawal:', err);
     return res.status(500).json({ success: false, error: err.message });
@@ -278,7 +280,7 @@ exports.adminRejectWithdrawal = async (req, res) => {
       });
     }
     
-    return res.json({ success: true, message: 'Withdrawal rejected successfully' });
+    return res.json({ success: true, message: messages.WITHDRAWAL.WITHDRAWAL_REJECTED });
   } catch (err) {
     console.error('Error rejecting withdrawal:', err);
     return res.status(500).json({ success: false, error: err.message });

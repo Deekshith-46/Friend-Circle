@@ -1,4 +1,6 @@
 const MaleUser = require('../../models/maleUser/MaleUser');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Add or replace profile details (idempotent upsert-like behavior for owned fields)
 exports.addDetails = async (req, res) => {
@@ -20,8 +22,24 @@ exports.addDetails = async (req, res) => {
       images
     } = req.body;
 
+    // Validate email if provided
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+    
+    // Validate mobile number if provided
+    if (mobileNumber && !isValidMobile(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.VALIDATION.INVALID_MOBILE
+      });
+    }
+
     const user = await MaleUser.findById(req.user.id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 
     if (firstName !== undefined) user.firstName = firstName;
     if (lastName !== undefined) user.lastName = lastName;
@@ -48,6 +66,22 @@ exports.addDetails = async (req, res) => {
 // Update details (partial patch)
 exports.updateDetails = async (req, res) => {
   try {
+    // Validate email if provided in body
+    if (req.body.email && !isValidEmail(req.body.email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+    
+    // Validate mobile number if provided in body
+    if (req.body.mobileNumber && !isValidMobile(req.body.mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.VALIDATION.INVALID_MOBILE
+      });
+    }
+
     const update = { ...req.body };
     const allowed = new Set([
       'firstName','lastName','email','mobileNumber','dateOfBirth','gender','bio',
@@ -60,7 +94,7 @@ exports.updateDetails = async (req, res) => {
       update,
       { new: true }
     );
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     return res.json({ success: true, data: user });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -72,7 +106,7 @@ exports.deleteDetails = async (req, res) => {
   try {
     const fieldsToClear = req.body?.fields || [];
     const user = await MaleUser.findById(req.user.id);
-    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 
     const clearable = new Set([
       'firstName','lastName','email','mobileNumber','dateOfBirth','gender','bio',
@@ -92,5 +126,3 @@ exports.deleteDetails = async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 };
-
-

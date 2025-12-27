@@ -2,6 +2,8 @@
 const KYC = require('../../models/femaleUser/KYC');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const mongoose = require('mongoose');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Submit KYC
 exports.submitKYC = async (req, res) => {

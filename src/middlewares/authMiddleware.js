@@ -4,6 +4,7 @@ const Staff = require('../models/admin/Staff');
 const FemaleUser = require('../models/femaleUser/FemaleUser'); // Import FemaleUser model
 const MaleUser = require('../models/maleUser/MaleUser');
 const AgencyUser = require('../models/agency/AgencyUser');
+const messages = require('../validations/messages');
 const auth = async (req, res, next) => {
   let token;
   
@@ -14,7 +15,7 @@ const auth = async (req, res, next) => {
 
   // If no token is found, respond with a 401 status
   if (!token) {
-    return res.status(401).json({ success: false, message: 'Not authorized' });
+    return res.status(401).json({ success: false, message: messages.AUTH_MIDDLEWARE.NOT_AUTHORIZED });
   }
 
   try {
@@ -32,14 +33,14 @@ const auth = async (req, res, next) => {
         if (req.staff) {
           req.userType = 'staff';
         } else {
-          return res.status(404).json({ success: false, message: 'User not found' });
+          return res.status(404).json({ success: false, message: messages.AUTH_MIDDLEWARE.USER_NOT_FOUND });
         }
       }
     } else if (req.originalUrl.startsWith('/female-user')) {
       // Female user authentication
       req.user = await FemaleUser.findById(decoded.id); // Store user data in req.user
       if (!req.user) {
-        return res.status(404).json({ success: false, message: 'User not found' });
+        return res.status(404).json({ success: false, message: messages.AUTH_MIDDLEWARE.USER_NOT_FOUND });
       }
       
     }
@@ -47,21 +48,21 @@ const auth = async (req, res, next) => {
         // Male user authentication
         req.user = await MaleUser.findById(decoded.id); // Store user data in req.user
         if (!req.user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: messages.AUTH_MIDDLEWARE.USER_NOT_FOUND });
         }
     }
     else if (req.originalUrl.startsWith('/agency')) {
         // Agency user authentication
         req.user = await AgencyUser.findById(decoded.id);
         if (!req.user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: messages.AUTH_MIDDLEWARE.USER_NOT_FOUND });
         }
     }
 
     // Proceed to the next middleware or route handler
     next();
   } catch (error) {
-    res.status(401).json({ success: false, message: 'Invalid token' });
+    res.status(401).json({ success: false, message: messages.AUTH_MIDDLEWARE.INVALID_TOKEN });
   }
 };
 
@@ -83,7 +84,7 @@ module.exports = auth;
 //     req.admin = await AdminUser.findById(decoded.id).select('-passwordHash');
 //     next();
 //   } catch (error) {
-//     res.status(401).json({ success: false, message: 'Invalid token' });
+//     res.status(401).json({ success: false, message: messages.AUTH_MIDDLEWARE.INVALID_TOKEN });
 //   }
 // };
 

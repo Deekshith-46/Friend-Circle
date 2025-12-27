@@ -3,6 +3,8 @@ const MaleUser = require('../../models/maleUser/MaleUser');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const Transaction = require('../../models/common/Transaction');
 const GiftReceived = require('../../models/femaleUser/GiftReceived');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // List available gifts (published)
 exports.listGifts = async (req, res) => {
@@ -28,8 +30,8 @@ exports.sendGift = async (req, res) => {
       Gift.findById(giftId)
     ]);
 
-    if (!male) return res.status(404).json({ success: false, message: 'Male user not found' });
-    if (!female) return res.status(404).json({ success: false, message: 'Female user not found' });
+    if (!male) return res.status(404).json({ success: false, message: messages.COMMON.MALE_USER_NOT_FOUND });
+    if (!female) return res.status(404).json({ success: false, message: messages.COMMON.FEMALE_USER_NOT_FOUND });
     if (!gift || gift.status !== 'publish') {
       return res.status(400).json({ success: false, message: 'Invalid gift' });
     }

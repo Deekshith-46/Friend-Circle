@@ -7,6 +7,7 @@ const MaleFollowing = require('../../models/maleUser/Following');
 const BlockList = require('../../models/femaleUser/BlockList');
 const MaleBlockList = require('../../models/maleUser/BlockList');
 const FollowRequest = require('../../models/common/FollowRequest');
+const messages = require('../../validations/messages');
 
 // Follow a Male User (Explicit follow-back functionality)
 exports.followBackUser = async (req, res) => {
@@ -18,13 +19,13 @@ exports.followBackUser = async (req, res) => {
     // Check if there's already a following relationship
     const existingFollowing = await FemaleFollowing.findOne({ femaleUserId: req.user._id, maleUserId });
     if (existingFollowing) {
-      return res.status(400).json({ success: false, message: 'Already following this user.' });
+      return res.status(400).json({ success: false, message: messages.FOLLOW.ALREADY_FOLLOWING });
     }
 
     // Check if the male user is actually following the female user (exists in female's followers list)
     const isFollower = await FemaleFollowers.findOne({ femaleUserId: req.user._id, maleUserId });
     if (!isFollower) {
-      return res.status(400).json({ success: false, message: 'This user is not following you.' });
+      return res.status(400).json({ success: false, message: messages.FOLLOW.NOT_FOLLOWER });
     }
 
     // Check if the male user is blocked by the female user
@@ -36,7 +37,7 @@ exports.followBackUser = async (req, res) => {
     if (isBlocked) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Cannot follow this user. You have blocked them. Please unblock first to follow.' 
+        message: messages.FOLLOW.BLOCKED_CANNOT_FOLLOW 
       });
     }
 
@@ -69,7 +70,7 @@ exports.followBackUser = async (req, res) => {
       $addToSet: { malefollowers: newFollower._id }
     });
 
-    res.json({ success: true, message: 'Following male user successfully.' });
+    res.json({ success: true, message: messages.FOLLOW.FOLLOW_SUCCESS });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -85,7 +86,7 @@ exports.followUser = async (req, res) => {
     // Check if there's already a following relationship
     const existingFollowing = await FemaleFollowing.findOne({ femaleUserId: req.user._id, maleUserId });
     if (existingFollowing) {
-      return res.status(400).json({ success: false, message: 'Already following this user.' });
+      return res.status(400).json({ success: false, message: messages.FOLLOW.ALREADY_FOLLOWING });
     }
 
     // Check if the male user is blocked by the female user
@@ -97,7 +98,7 @@ exports.followUser = async (req, res) => {
     if (isBlocked) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Cannot follow this user. You have blocked them. Please unblock first to follow.' 
+        message: messages.FOLLOW.BLOCKED_CANNOT_FOLLOW 
       });
     }
 
@@ -130,7 +131,7 @@ exports.followUser = async (req, res) => {
       $addToSet: { malefollowers: newFollower._id }
     });
 
-    res.json({ success: true, message: 'Following male user successfully.' });
+    res.json({ success: true, message: messages.FOLLOW.FOLLOW_SUCCESS });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -145,7 +146,7 @@ exports.unfollowUser = async (req, res) => {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ 
         success: false, 
-        message: 'Authentication required.' 
+        message: messages.FOLLOW.AUTHENTICATION_REQUIRED 
       });
     }
 
@@ -217,7 +218,7 @@ exports.unfollowUser = async (req, res) => {
       ]
     });
 
-    res.json({ success: true, message: 'Unfollowed male user successfully.' });
+    res.json({ success: true, message: messages.FOLLOW.UNFOLLOW_SUCCESS });
   } catch (err) {
     console.error('Error in unfollowUser:', err);
     res.status(500).json({ success: false, error: err.message });

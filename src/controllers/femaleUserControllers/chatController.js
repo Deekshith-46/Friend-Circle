@@ -3,6 +3,8 @@ const Chat = require('../../models/femaleUser/Chat');
 const { checkBlockStatus } = require('../../middlewares/blockMiddleware');
 const MaleUser = require('../../models/maleUser/MaleUser');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Send Message (text, image, video, etc.)
 exports.sendMessage = async (req, res) => {

@@ -1,4 +1,5 @@
 // Permission middleware for staff access control
+const messages = require('../validations/messages');
 const checkPermission = (module, action) => {
   return (req, res, next) => {
     // Admin has full access
@@ -14,7 +15,7 @@ const checkPermission = (module, action) => {
       if (!modulePermissions) {
         return res.status(403).json({ 
           success: false, 
-          message: `No access to ${module} module` 
+          message: messages.PERMISSION.NO_ACCESS_MODULE(module) 
         });
       }
 
@@ -22,14 +23,14 @@ const checkPermission = (module, action) => {
       if (!modulePermissions[action]) {
         return res.status(403).json({ 
           success: false, 
-          message: `No ${action} permission for ${module} module` 
+          message: messages.PERMISSION.NO_PERMISSION_ACTION(action, module) 
         });
       }
 
       return next();
     }
 
-    return res.status(401).json({ success: false, message: 'Unauthorized' });
+    return res.status(401).json({ success: false, message: messages.PERMISSION.UNAUTHORIZED });
   };
 };
 
@@ -82,21 +83,21 @@ const dynamicPermissionCheck = (req, res, next) => {
     if (!modulePermissions) {
       return res.status(403).json({ 
         success: false, 
-        message: `No access to ${module} module` 
+        message: messages.PERMISSION.NO_ACCESS_MODULE(module) 
       });
     }
 
     if (!modulePermissions[action]) {
       return res.status(403).json({ 
         success: false, 
-        message: `No ${action} permission for ${module} module` 
+        message: messages.PERMISSION.NO_PERMISSION_ACTION(action, module) 
       });
     }
 
     return next();
   }
 
-  return res.status(401).json({ success: false, message: 'Unauthorized' });
+  return res.status(401).json({ success: false, message: messages.PERMISSION.UNAUTHORIZED });
 };
 
 module.exports = {

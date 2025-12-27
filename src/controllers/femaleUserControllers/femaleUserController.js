@@ -7,6 +7,8 @@ const sendOtp = require('../../utils/sendOtp');
 const FemaleImage = require('../../models/femaleUser/Image');
 const AdminConfig = require('../../models/admin/AdminConfig');
 const WithdrawalRequest = require('../../models/common/WithdrawalRequest');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Update user interests
 exports.updateInterests = async (req, res) => {
@@ -17,7 +19,7 @@ exports.updateInterests = async (req, res) => {
     if (!interestIds || !Array.isArray(interestIds)) {
       return res.status(400).json({
         success: false,
-        message: "Interest IDs array is required"
+        message: messages.PROFILE.INTEREST_REQUIRED
       });
     }
 
@@ -30,13 +32,13 @@ exports.updateInterests = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Interests updated successfully",
+      message: messages.FEMALE_USER.INTERESTS_UPDATED_SUCCESS,
       data: {
         interests: user.interests
       }
@@ -55,7 +57,7 @@ exports.updateLanguages = async (req, res) => {
     if (!languageIds || !Array.isArray(languageIds)) {
       return res.status(400).json({
         success: false,
-        message: "Language IDs array is required"
+        message: messages.PROFILE.LANGUAGE_REQUIRED
       });
     }
 
@@ -68,13 +70,13 @@ exports.updateLanguages = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Languages updated successfully",
+      message: messages.FEMALE_USER.LANGUAGES_UPDATED_SUCCESS,
       data: {
         languages: user.languages
       }
@@ -93,7 +95,7 @@ exports.updateHobbies = async (req, res) => {
     if (!hobbies || !Array.isArray(hobbies)) {
       return res.status(400).json({
         success: false,
-        message: "Hobbies array is required"
+        message: messages.PROFILE.HOBBIES_REQUIRED
       });
     }
 
@@ -106,13 +108,13 @@ exports.updateHobbies = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Hobbies updated successfully",
+      message: messages.FEMALE_USER.HOBBIES_UPDATED_SUCCESS,
       data: {
         hobbies: user.hobbies
       }
@@ -131,7 +133,7 @@ exports.updateSports = async (req, res) => {
     if (!sports || !Array.isArray(sports)) {
       return res.status(400).json({
         success: false,
-        message: "Sports array is required"
+        message: messages.PROFILE.SPORTS_REQUIRED
       });
     }
 
@@ -144,13 +146,13 @@ exports.updateSports = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Sports updated successfully",
+      message: messages.FEMALE_USER.SPORTS_UPDATED_SUCCESS,
       data: {
         sports: user.sports
       }
@@ -169,7 +171,7 @@ exports.updateFilm = async (req, res) => {
     if (!film || !Array.isArray(film)) {
       return res.status(400).json({
         success: false,
-        message: "Film preferences array is required"
+        message: messages.PROFILE.FILM_REQUIRED
       });
     }
 
@@ -182,13 +184,13 @@ exports.updateFilm = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Film preferences updated successfully",
+      message: messages.FEMALE_USER.FILM_UPDATED_SUCCESS,
       data: {
         film: user.film
       }
@@ -207,7 +209,7 @@ exports.updateMusic = async (req, res) => {
     if (!music || !Array.isArray(music)) {
       return res.status(400).json({
         success: false,
-        message: "Music preferences array is required"
+        message: messages.PROFILE.MUSIC_REQUIRED
       });
     }
 
@@ -220,7 +222,7 @@ exports.updateMusic = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
@@ -245,7 +247,7 @@ exports.updateTravel = async (req, res) => {
     if (!travel || !Array.isArray(travel)) {
       return res.status(400).json({
         success: false,
-        message: "Travel preferences array is required"
+        message: messages.PROFILE.TRAVEL_REQUIRED
       });
     }
 
@@ -258,13 +260,13 @@ exports.updateTravel = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found"
+        message: messages.COMMON.USER_NOT_FOUND
       });
     }
 
     return res.json({
       success: true,
-      message: "Travel preferences updated successfully",
+      message: messages.FEMALE_USER.TRAVEL_UPDATED_SUCCESS,
       data: {
         travel: user.travel
       }
@@ -280,6 +282,21 @@ exports.registerUser = async (req, res) => {
   const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
 
   try {
+    // Validate email and mobile number
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+    
+    if (!isValidMobile(mobileNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.VALIDATION.INVALID_MOBILE
+      });
+    }
+
     // Check if user already exists
     const existingUser = await FemaleUser.findOne({ $or: [{ email }, { mobileNumber }] });
     
@@ -297,14 +314,14 @@ exports.registerUser = async (req, res) => {
         
         return res.status(201).json({
           success: true,
-          message: "OTP sent to your email for verification.",
+          message: messages.AUTH.OTP_SENT_EMAIL,
           otp: otp // For testing purposes
         });
       } else {
         // User is already verified and active with complete profile
         return res.status(400).json({ 
           success: false, 
-          message: "User already exists and is verified. Please login instead." 
+          message: messages.AUTH.USER_ALREADY_EXISTS
         });
       }
     }
@@ -345,7 +362,7 @@ exports.registerUser = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "OTP sent to your email.",
+      message: messages.AUTH.OTP_SENT_EMAIL,
       otp: otp // For testing purposes
     });
   } catch (err) {
@@ -358,17 +375,25 @@ exports.loginUser = async (req, res) => {
   const { email } = req.body;
 
   try {
+    // Validate email
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.COMMON.INVALID_EMAIL
+      });
+    }
+
     // Check if the user exists
     const user = await FemaleUser.findOne({ email });
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
 
     // Check if user has completed profile
     if (!user.profileCompleted) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Please signUp and complete your profile first before logging in.' 
+        message: messages.REGISTRATION.PROFILE_NOT_COMPLETED
       });
     }
 
@@ -376,17 +401,17 @@ exports.loginUser = async (req, res) => {
     if (user.reviewStatus !== 'approved') {
       return res.status(403).json({ 
         success: false, 
-        message: 'Your registration is under review or rejected. Please wait for admin approval.' 
+        message: messages.REGISTRATION.REGISTRATION_UNDER_REVIEW
       });
     }
 
     // Check if user is verified
     if (!user.isVerified) {
-      return res.status(400).json({ success: false, message: 'Please verify your account first.' });
+      return res.status(400).json({ success: false, message: messages.AUTH.ACCOUNT_NOT_VERIFIED });
     }
     // Check if user is active
     if (user.status === 'inactive') {
-      return res.status(403).json({ success: false, message: 'Your account has been deactivated by admin or staff.' });
+      return res.status(403).json({ success: false, message: messages.AUTH.ACCOUNT_DEACTIVATED });
     }
 
     // Generate new OTP for login
@@ -399,7 +424,7 @@ exports.loginUser = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'OTP sent to your email for login verification.',
+      message: messages.AUTH.OTP_SENT_LOGIN,
       otp: otp // For testing purposes
     });
   } catch (err) {
@@ -424,7 +449,7 @@ exports.verifyLoginOtp = async (req, res) => {
 
       res.json({
         success: true,
-        message: 'Login successful.',
+        message: messages.AUTH.LOGIN_SUCCESS,
         token,
         user: {
           id: user._id,
@@ -434,7 +459,7 @@ exports.verifyLoginOtp = async (req, res) => {
         }
       });
     } else {
-      res.status(400).json({ success: false, message: 'Invalid OTP or user not found.' });
+      res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -460,11 +485,11 @@ exports.verifyOtp = async (req, res) => {
       res.json({ 
         success: true, 
         token,
-        message: "OTP verified successfully. Please complete your profile to continue.",
+        message: messages.AUTH.OTP_VERIFIED,
         profileCompleted: false
       });
     } else {
-      res.status(400).json({ success: false, message: "Invalid OTP" });
+      res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
     }
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -504,7 +529,7 @@ exports.completeUserProfile = async (req, res) => {
     // Find the user
     const user = await FemaleUser.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
     
     // Get admin config for referral bonus
@@ -515,7 +540,7 @@ exports.completeUserProfile = async (req, res) => {
     if (user.profileCompleted) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Profile is already completed and under review.' 
+        message: messages.REGISTRATION.PROFILE_COMPLETED
       });
     }
 
@@ -523,7 +548,7 @@ exports.completeUserProfile = async (req, res) => {
     if (!name || !age || !gender || !bio) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Name, age, gender, and bio are required to complete profile.' 
+        message: messages.REGISTRATION.PROFILE_REQUIRED_FIELDS
       });
     }
 
@@ -531,7 +556,7 @@ exports.completeUserProfile = async (req, res) => {
     if (!user.images || user.images.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        message: 'At least one image is required to complete profile.' 
+        message: messages.REGISTRATION.PROFILE_MIN_IMAGES
       });
     }
 
@@ -539,7 +564,7 @@ exports.completeUserProfile = async (req, res) => {
     if (!user.videoUrl) {
       return res.status(400).json({ 
         success: false, 
-        message: 'A video is required to complete profile.' 
+        message: messages.REGISTRATION.PROFILE_VIDEO_REQUIRED
       });
     }
 
@@ -614,7 +639,7 @@ exports.completeUserProfile = async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: 'Profile completed successfully! Your account is now pending admin approval.',
+      message: messages.REGISTRATION.PROFILE_COMPLETED_SUCCESS,
       data: {
         profileCompleted: true,
         reviewStatus: 'pending'
@@ -705,7 +730,7 @@ exports.getUserProfile = async (req, res) => {
       });
       
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
     res.json({ success: true, data: user });
   } catch (err) {
@@ -741,7 +766,7 @@ exports.updateUserInfo = async (req, res) => {
 exports.deleteUser = async (req, res) => {
   try {
     await FemaleUser.findByIdAndDelete(req.user.id);
-    res.json({ success: true, message: 'User account deleted successfully.' });
+    res.json({ success: true, message: messages.USER.USER_DELETED });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -752,7 +777,7 @@ exports.getBalanceInfo = async (req, res) => {
   try {
     const user = await FemaleUser.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
     
     // Get admin config for conversion rate
@@ -804,7 +829,7 @@ exports.getWithdrawalHistory = async (req, res) => {
 exports.uploadImage = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: 'No images uploaded.' });
+      return res.status(400).json({ success: false, message: messages.IMAGE.NO_IMAGES });
     }
 
     const user = await FemaleUser.findById(req.user.id).populate('images');
@@ -812,7 +837,7 @@ exports.uploadImage = async (req, res) => {
     const currentCount = Array.isArray(user.images) ? user.images.length : 0;
     const remainingSlots = Math.max(0, 5 - currentCount);
     if (remainingSlots === 0) {
-      return res.status(400).json({ success: false, message: 'Image limit reached. Maximum 5 images allowed.' });
+      return res.status(400).json({ success: false, message: messages.REGISTRATION.IMAGE_LIMIT_REACHED });
     }
 
     const filesToProcess = req.files.slice(0, remainingSlots);
@@ -827,7 +852,7 @@ exports.uploadImage = async (req, res) => {
     user.images = [...(user.images || []).map(img => img._id ? img._id : img), ...createdImageIds];
     await user.save();
 
-    return res.json({ success: true, message: 'Images uploaded successfully.', added: createdImageIds.length, skipped });
+    return res.json({ success: true, message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, added: createdImageIds.length, skipped });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -837,7 +862,7 @@ exports.uploadImage = async (req, res) => {
 exports.uploadVideo = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No video uploaded.' });
+      return res.status(400).json({ success: false, message: messages.NOTIFICATION.NO_VIDEO_UPLOADED });
     }
 
     const videoUrl = req.file.path;
@@ -858,7 +883,7 @@ exports.uploadVideo = async (req, res) => {
 
     res.json({ 
       success: true,
-      message: 'Video uploaded successfully.',
+      message: messages.NOTIFICATION.VIDEO_UPLOADED_SUCCESS,
       // New structured payload for frontend consumers
       data: {
         url: videoUrl,
@@ -883,17 +908,17 @@ exports.deleteImage = async (req, res) => {
 
     const imageDoc = await FemaleImage.findById(imageId);
     if (!imageDoc) {
-      return res.status(404).json({ success: false, message: 'Image not found' });
+      return res.status(404).json({ success: false, message: messages.USER.IMAGE_NOT_FOUND });
     }
     if (String(imageDoc.femaleUserId) !== String(req.user.id)) {
-      return res.status(403).json({ success: false, message: 'Not authorized to delete this image' });
+      return res.status(403).json({ success: false, message: messages.USER.NOT_AUTHORIZED_DELETE_IMAGE });
     }
 
     // Remove ref from user.images and delete image document
     await FemaleUser.updateOne({ _id: req.user.id }, { $pull: { images: imageDoc._id } });
     await FemaleImage.deleteOne({ _id: imageDoc._id });
 
-    return res.json({ success: true, message: 'Image deleted successfully' });
+    return res.json({ success: true, message: messages.IMAGE.IMAGE_DELETED });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -984,7 +1009,7 @@ exports.toggleOnlineStatus = async (req, res) => {
 
     const user = await FemaleUser.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
 
     // If going online
@@ -1009,7 +1034,7 @@ exports.toggleOnlineStatus = async (req, res) => {
 
     return res.json({ 
       success: true, 
-      message: `Status updated to ${onlineStatus ? 'online' : 'offline'}`,
+      message: messages.USER.STATUS_UPDATED(onlineStatus),
       data: {
         onlineStatus: user.onlineStatus,
         totalOnlineMinutes: user.totalOnlineMinutes || 0

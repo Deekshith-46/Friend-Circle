@@ -2,12 +2,29 @@ const AgencyUser = require('../../models/agency/AgencyUser');
 const AgencyImage = require('../../models/agency/Image');
 const generateToken = require('../../utils/generateToken');
 const sendOtp = require('../../utils/sendOtp');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Agency signup: email + mobileNumber => create, send OTP to email
 exports.agencyRegister = async (req, res) => {
 	const { email, mobileNumber } = req.body;
 	const otp = Math.floor(1000 + Math.random() * 9000);
 	try {
+		// Validate email and mobile number
+		if (!isValidEmail(email)) {
+			return res.status(400).json({
+				success: false,
+				message: messages.COMMON.INVALID_EMAIL
+			});
+		}
+		
+		if (!isValidMobile(mobileNumber)) {
+			return res.status(400).json({
+				success: false,
+				message: messages.VALIDATION.INVALID_MOBILE
+			});
+		}
+
 		const existing = await AgencyUser.findOne({ $or: [{ email }, { mobileNumber }] });
 		
 		if (existing) {
@@ -22,14 +39,14 @@ exports.agencyRegister = async (req, res) => {
 				
 				return res.status(201).json({ 
 					success: true, 
-					message: 'OTP sent to your email for verification.',
+					message: messages.AUTH.OTP_SENT_EMAIL,
 					otp: otp // For testing purposes
 				});
 			} else {
 				// Agency is already verified and active
 				return res.status(400).json({ 
 					success: false, 
-					message: 'Agency already exists and is verified. Please login instead.' 
+					message: messages.AUTH.USER_ALREADY_EXISTS
 				});
 			}
 		}
@@ -43,7 +60,7 @@ exports.agencyRegister = async (req, res) => {
 		});
 		await agency.save();
 		await sendOtp(email, otp);
-		return res.status(201).json({ success: true, message: 'OTP sent to your email.', otp: otp }); // For testing purposes
+		return res.status(201).json({ success: true, message: messages.AUTH.OTP_SENT_EMAIL, otp: otp }); // For testing purposes
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
@@ -54,7 +71,7 @@ exports.agencyVerifyOtp = async (req, res) => {
 	const { otp } = req.body;
 	try {
 		const agency = await AgencyUser.findOne({ otp, isVerified: false });
-		if (!agency) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+		if (!agency) return res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
 		agency.isVerified = true;
 		agency.isActive = true;
 		agency.otp = undefined;
@@ -71,15 +88,23 @@ exports.agencyVerifyOtp = async (req, res) => {
 exports.agencyLogin = async (req, res) => {
 	const { email } = req.body;
 	try {
+		// Validate email
+		if (!isValidEmail(email)) {
+			return res.status(400).json({
+				success: false,
+				message: messages.COMMON.INVALID_EMAIL
+			});
+		}
+
 		const agency = await AgencyUser.findOne({ email });
-		if (!agency) return res.status(404).json({ success: false, message: 'Agency not found.' });
-    if (agency.reviewStatus !== 'approved') return res.status(403).json({ success: false, message: 'Your registration is under review or rejected.' });
-		if (!agency.isVerified) return res.status(400).json({ success: false, message: 'Please verify your account first.' });
+		if (!agency) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    if (agency.reviewStatus !== 'approved') return res.status(403).json({ success: false, message: messages.REGISTRATION.REGISTRATION_UNDER_REVIEW });
+		if (!agency.isVerified) return res.status(400).json({ success: false, message: messages.AUTH.ACCOUNT_NOT_VERIFIED });
 		const otp = Math.floor(1000 + Math.random() * 9000);
 		agency.otp = otp;
 		await agency.save();
 		await sendOtp(email, otp);
-		return res.json({ success: true, message: 'OTP sent to your email for login verification.', otp: otp }); // For testing purposes
+		return res.json({ success: true, message: messages.AUTH.OTP_SENT_LOGIN, otp: otp }); // For testing purposes
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
@@ -90,11 +115,11 @@ exports.agencyVerifyLoginOtp = async (req, res) => {
 	const { otp } = req.body;
 	try {
 		const agency = await AgencyUser.findOne({ otp, isVerified: true });
-		if (!agency) return res.status(400).json({ success: false, message: 'Invalid OTP' });
+		if (!agency) return res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
 		agency.otp = undefined;
 		await agency.save();
 		const token = generateToken(agency._id);
-		return res.json({ success: true, message: 'Login successful.', token });
+		return res.json({ success: true, message: messages.AUTH.LOGIN_SUCCESS, token });
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
@@ -105,7 +130,7 @@ exports.agencySaveDetails = async (req, res) => {
 	const { firstName, lastName, aadharNumber, panNumber, referralCode } = req.body;
 	try {
 		const agency = await AgencyUser.findById(req.user.id);
-		if (!agency) return res.status(404).json({ success: false, message: 'Agency not found' });
+		if (!agency) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 		if (firstName !== undefined) agency.firstName = firstName;
 		if (lastName !== undefined) agency.lastName = lastName;
 		if (aadharNumber !== undefined) agency.aadharNumber = aadharNumber;
@@ -122,7 +147,7 @@ exports.agencySaveDetails = async (req, res) => {
 exports.agencyUploadImage = async (req, res) => {
 	try {
 		if (!req.file) {
-			return res.status(400).json({ success: false, message: 'No image uploaded.' });
+			return res.status(400).json({ success: false, message: messages.IMAGE.NO_IMAGES });
 		}
 		const imageUrl = req.file.path;
 		const record = new AgencyImage({ agencyUserId: req.user.id, imageUrl });
@@ -130,7 +155,7 @@ exports.agencyUploadImage = async (req, res) => {
 		const agency = await AgencyUser.findById(req.user.id);
 		agency.image = imageUrl;
 		await agency.save();
-		return res.json({ success: true, message: 'Image uploaded successfully.', url: imageUrl });
+		return res.json({ success: true, message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, url: imageUrl });
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
@@ -140,11 +165,9 @@ exports.agencyUploadImage = async (req, res) => {
 exports.agencyMe = async (req, res) => {
 	try {
 		const agency = await AgencyUser.findById(req.user.id).select('-otp');
-		if (!agency) return res.status(404).json({ success: false, message: 'Agency not found' });
+		if (!agency) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 		return res.json({ success: true, data: agency });
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
 	}
 };
-
-

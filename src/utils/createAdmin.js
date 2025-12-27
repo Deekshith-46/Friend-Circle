@@ -18,12 +18,12 @@ async function createAdmin() {
     }
 
     // Hash password
-    const passwordHash = await bcrypt.hash('123456', 10);
+    const passwordHash = await bcrypt.hash('12345678', 10);
 
     // Create admin
     const admin = await AdminUser.create({
       name: 'Admin',
-      email: 'admin@example.com',
+      email: 'admin@gmail.com',
       passwordHash,
       phone: '1234567890',
       isActive: true

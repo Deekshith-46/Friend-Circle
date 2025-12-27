@@ -4,6 +4,8 @@ const AdminPackage = require('../../models/admin/Package');
 const Transaction = require('../../models/common/Transaction');
 const MaleUser = require('../../models/maleUser/MaleUser');
 const crypto = require('crypto');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Create Razorpay order for wallet recharge
 exports.createWalletOrder = async (req, res) => {
@@ -12,14 +14,14 @@ exports.createWalletOrder = async (req, res) => {
     
     // Validate amount
     if (!amount || amount <= 0) {
-      return res.status(400).json({ success: false, message: 'Invalid amount' });
+      return res.status(400).json({ success: false, message: messages.PAYMENT.INVALID_AMOUNT });
     }
     
     const amountInPaise = amount * 100;
 
     // Check if Razorpay is configured
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
-      return res.status(500).json({ success: false, message: 'Razorpay not configured' });
+      return res.status(500).json({ success: false, message: messages.PAYMENT.RAZORPAY_NOT_CONFIGURED });
     }
 
     const options = {
@@ -62,7 +64,7 @@ exports.createCoinOrder = async (req, res) => {
     const pkg = await AdminPackage.findById(packageId);
     
     if (!pkg || pkg.status !== 'publish') {
-      return res.status(400).json({ success: false, message: 'Invalid package' });
+      return res.status(400).json({ success: false, message: messages.PAYMENT.INVALID_PACKAGE });
     }
 
     const amountInPaise = pkg.amount * 100;
@@ -70,7 +72,7 @@ exports.createCoinOrder = async (req, res) => {
     const options = {
       amount: amountInPaise,
       currency: 'INR',
-      receipt: `c_${Date.now()}`, // Shortened receipt (max 40 chars)
+      receipt: `c_${Date.now()}`, // Shortened receipt (max 40 chars),
     };
 
     const order = await razorpay.orders.create(options);
@@ -112,14 +114,14 @@ exports.verifyPayment = async (req, res) => {
     }
 
     // // Verify signature
-    // const generated_signature = crypto
-    //   .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-    //   .update(razorpay_order_id + '|' + razorpay_payment_id)
-    //   .digest('hex');
+    // // const generated_signature = crypto
+    // //   .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    // //   .update(razorpay_order_id + '|' + razorpay_payment_id)
+    // //   .digest('hex');
 
-    // if (generated_signature !== razorpay_signature) {
-    //   return res.status(400).json({ success: false, message: 'Invalid signature' });
-    // }
+    // // if (generated_signature !== razorpay_signature) {
+    // //   return res.status(400).json({ success: false, message: 'Invalid signature' });
+    // // }
 
     // Update payment record
     payment.razorpayPaymentId = razorpay_payment_id;
@@ -167,7 +169,7 @@ exports.verifyPayment = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Payment verified successfully',
+      message: messages.PAYMENT.PAYMENT_VERIFIED,
       data: {
         paymentId: payment._id,
         transactionId: transaction._id,

@@ -3,6 +3,8 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const getUserId = require('../../utils/getUserId');
 const Transaction = require('../../models/common/Transaction');
 const AgencyUser = require('../../models/agency/AgencyUser');
+const { isValidEmail, isValidMobile } = require('../../validations/validations');
+const messages = require('../../validations/messages');
 
 // Utility function to clean up invalid interests and languages references for a user
 const cleanUpUserReferences = async (userId) => {
@@ -69,12 +71,12 @@ exports.cleanUserReferences = async (req, res) => {
 		const result = await cleanUpUserReferences(userId);
 		
 		if (!result) {
-			return res.status(404).json({ success: false, message: 'User not found' });
+			return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 		}
 		
 		return res.json({ 
 			success: true, 
-			message: 'User references cleaned up successfully',
+			message: messages.USER_MANAGEMENT.USER_REFERENCES_CLEANED,
 			data: result 
 		});
 	} catch (err) {
@@ -130,14 +132,14 @@ exports.toggleStatus = async (req, res) => {
 	try {
 		const { userType, userId, status } = req.body; // userType: 'male' | 'female'; status: 'active' | 'inactive'
 		if (!['male', 'female'].includes(userType)) {
-			return res.status(400).json({ success: false, message: 'Invalid userType' });
+			return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
 		}
 		if (!['active', 'inactive'].includes(status)) {
-			return res.status(400).json({ success: false, message: 'Invalid status' });
+			return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_STATUS });
 		}
 		const Model = userType === 'male' ? MaleUser : FemaleUser;
 		const user = await Model.findByIdAndUpdate(userId, { status }, { new: true });
-		if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+		if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 		return res.json({ success: true, data: user });
 	} catch (err) {
 		return res.status(500).json({ success: false, error: err.message });
@@ -149,19 +151,19 @@ exports.operateBalance = async (req, res) => {
     try {
         const { userType, userId, operationType, action, amount, message } = req.body;
         if (!['male', 'female'].includes(userType)) return res.status(400).json({ success: false, message: 'Invalid userType' });
-        if (!['wallet', 'coin'].includes(operationType)) return res.status(400).json({ success: false, message: 'Invalid operationType' });
-        if (!['credit', 'debit'].includes(action)) return res.status(400).json({ success: false, message: 'Invalid action' });
+        if (!['wallet', 'coin'].includes(operationType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_OPERATION_TYPE });
+        if (!['credit', 'debit'].includes(action)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_ACTION });
         const numericAmount = Number(amount);
-        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ success: false, message: 'Invalid amount' });
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_AMOUNT });
 
         const Model = userType === 'male' ? MaleUser : FemaleUser;
         const user = await Model.findById(userId);
-        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 
         const balanceField = operationType === 'wallet' ? 'walletBalance' : 'coinBalance';
         const currentBalance = user[balanceField] || 0;
         const updatedBalance = action === 'credit' ? currentBalance + numericAmount : currentBalance - numericAmount;
-        if (updatedBalance < 0) return res.status(400).json({ success: false, message: 'Insufficient balance' });
+        if (updatedBalance < 0) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INSUFFICIENT_BALANCE });
 
         user[balanceField] = updatedBalance;
         await user.save();
@@ -172,7 +174,7 @@ exports.operateBalance = async (req, res) => {
             operationType,
             action,
             amount: numericAmount,
-            message: message || (action === 'credit' ? 'Balance credited' : 'Balance debited'),
+            message: message || (action === 'credit' ? messages.USER_MANAGEMENT.BALANCE_CREDITED : messages.USER_MANAGEMENT.BALANCE_DEBITED),
             balanceAfter: updatedBalance,
             createdBy: req.admin?._id || req.staff?._id
         });
@@ -187,11 +189,11 @@ exports.operateBalance = async (req, res) => {
 exports.reviewRegistration = async (req, res) => {
     try {
         const { userType, userId, reviewStatus } = req.body; // userType: 'female' | 'agency'; reviewStatus: 'approved' | 'rejected'
-        if (!['female', 'agency'].includes(userType)) return res.status(400).json({ success: false, message: 'Invalid userType' });
-        if (!['approved', 'rejected'].includes(reviewStatus)) return res.status(400).json({ success: false, message: 'Invalid reviewStatus' });
+        if (!['female', 'agency'].includes(userType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
+        if (!['approved', 'rejected'].includes(reviewStatus)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_REVIEW_STATUS });
         const Model = userType === 'female' ? FemaleUser : AgencyUser;
         const user = await Model.findByIdAndUpdate(userId, { reviewStatus }, { new: true });
-        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
         return res.json({ success: true, data: user });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
@@ -202,14 +204,14 @@ exports.reviewRegistration = async (req, res) => {
 exports.reviewKYC = async (req, res) => {
     try {
         const { kycId, status, kycType, rejectionReason } = req.body; // status: 'approved' | 'rejected', kycType: 'female' | 'agency'
-        if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
-        if (!['female', 'agency'].includes(kycType)) return res.status(400).json({ success: false, message: 'Invalid kycType' });
+        if (!['approved', 'rejected'].includes(status)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_STATUS });
+        if (!['female', 'agency'].includes(kycType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_KYC_TYPE });
         
         let kyc;
         if (kycType === 'female') {
             const FemaleKYC = require('../../models/femaleUser/KYC');
             kyc = await FemaleKYC.findByIdAndUpdate(kycId, { status, verifiedBy: req.admin?._id || req.staff?._id }, { new: true });
-            if (!kyc) return res.status(404).json({ success: false, message: 'Female KYC not found' });
+            if (!kyc) return res.status(404).json({ success: false, message: messages.USER_MANAGEMENT.FEMALE_KYC_NOT_FOUND });
             // Update FemaleUser kycStatus and kycDetails when KYC is approved
             if (status === 'approved') {
                 // Update only the specific method that was approved
@@ -255,7 +257,7 @@ exports.reviewKYC = async (req, res) => {
         } else {
             const AgencyKYC = require('../../models/agency/KYC');
             kyc = await AgencyKYC.findByIdAndUpdate(kycId, { status, verifiedBy: req.admin?._id || req.staff?._id }, { new: true });
-            if (!kyc) return res.status(404).json({ success: false, message: 'Agency KYC not found' });
+            if (!kyc) return res.status(404).json({ success: false, message: messages.USER_MANAGEMENT.AGENCY_KYC_NOT_FOUND });
             // Update AgencyUser kycStatus when KYC is approved
             if (status === 'approved') {
                 await AgencyUser.findByIdAndUpdate(kyc.user, { kycStatus: 'approved' });
@@ -334,7 +336,7 @@ exports.deleteUser = async (req, res) => {
     try {
         const { userType, userId } = req.params; // userType: 'male' | 'female' | 'agency'
         if (!['male', 'female', 'agency'].includes(userType)) {
-            return res.status(400).json({ success: false, message: 'Invalid userType' });
+            return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
         }
 
         let Model;
@@ -348,12 +350,12 @@ exports.deleteUser = async (req, res) => {
 
         const user = await Model.findByIdAndDelete(userId);
         if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
         }
 
         return res.json({ 
             success: true, 
-            message: `${userType} user deleted successfully`,
+            message: messages.USER_MANAGEMENT.USER_DELETED_SUCCESS(userType),
             deletedUser: { id: user._id, email: user.email }
         });
     } catch (err) {
@@ -367,18 +369,18 @@ exports.setFemaleCallRate = async (req, res) => {
         const { userId, coinsPerSecond } = req.body;
         
         if (!userId) {
-            return res.status(400).json({ success: false, message: 'userId is required' });
+            return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.USER_ID_REQUIRED });
         }
         
         if (coinsPerSecond === undefined || coinsPerSecond === null) {
-            return res.status(400).json({ success: false, message: 'coinsPerSecond is required' });
+            return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.COINS_PER_SECOND_REQUIRED });
         }
         
         const numericRate = Number(coinsPerSecond);
         if (!Number.isFinite(numericRate) || numericRate < 0) {
             return res.status(400).json({ 
                 success: false, 
-                message: 'coinsPerSecond must be a valid non-negative number' 
+                message: messages.USER_MANAGEMENT.COINS_PER_SECOND_INVALID 
             });
         }
         
@@ -389,12 +391,12 @@ exports.setFemaleCallRate = async (req, res) => {
         ).select('name email coinsPerSecond');
         
         if (!femaleUser) {
-            return res.status(404).json({ success: false, message: 'Female user not found' });
+            return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
         }
         
         return res.json({
             success: true,
-            message: `Call rate updated successfully for ${femaleUser.name || femaleUser.email}`,
+            message: messages.USER_MANAGEMENT.CALL_RATE_UPDATED(femaleUser.name, femaleUser.email),
             data: {
                 userId: femaleUser._id,
                 name: femaleUser.name,
@@ -406,5 +408,3 @@ exports.setFemaleCallRate = async (req, res) => {
         return res.status(500).json({ success: false, error: err.message });
     }
 };
-
-

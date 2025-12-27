@@ -5,6 +5,7 @@ const Transaction = require('../../models/common/Transaction');
 const AdminConfig = require('../../models/admin/AdminConfig');
 const MaleFollowing = require('../../models/maleUser/Following');
 const FemaleFollowing = require('../../models/femaleUser/Following');
+const messages = require('../../validations/messages');
 
 // Start Call - Check minimum coins requirement and calculate max duration
 exports.startCall = async (req, res) => {
@@ -16,7 +17,7 @@ exports.startCall = async (req, res) => {
     if (!receiverId) {
       return res.status(400).json({
         success: false,
-        message: 'receiverId is required'
+        message: messages.CALL.RECEIVER_REQUIRED
       });
     }
 
@@ -27,14 +28,14 @@ exports.startCall = async (req, res) => {
     if (!caller) {
       return res.status(404).json({
         success: false,
-        message: 'Caller not found'
+        message: messages.CALL.CALLER_NOT_FOUND
       });
     }
 
     if (!receiver) {
       return res.status(404).json({
         success: false,
-        message: 'Receiver not found'
+        message: messages.CALL.RECEIVER_NOT_FOUND
       });
     }
 
@@ -53,7 +54,7 @@ exports.startCall = async (req, res) => {
     if (!isCallerFollowing || !isReceiverFollowing) {
       return res.status(400).json({
         success: false,
-        message: 'Both users must follow each other to start a call'
+        message: messages.CALL.FOLLOW_EACH_OTHER
       });
     }
 
@@ -64,7 +65,7 @@ exports.startCall = async (req, res) => {
     if (isCallerBlocked || isReceiverBlocked) {
       return res.status(400).json({
         success: false,
-        message: 'Either user has blocked the other, cannot start call'
+        message: messages.CALL.BLOCKED_CANNOT_CALL
       });
     }
 
@@ -79,7 +80,7 @@ exports.startCall = async (req, res) => {
     if (caller.coinBalance < minCallCoins) {
       return res.status(400).json({
         success: false,
-        message: `Minimum ${minCallCoins} coins required to start a call`,
+        message: messages.CALL.MIN_COINS_REQUIRED(minCallCoins),
         data: {
           available: caller.coinBalance,
           required: minCallCoins,
@@ -95,7 +96,7 @@ exports.startCall = async (req, res) => {
     if (maxSeconds <= 0) {
       return res.status(400).json({
         success: false,
-        message: 'Not enough coins to start call',
+        message: messages.CALL.NOT_ENOUGH_COINS,
         data: {
           available: caller.coinBalance,
           rate: coinsPerSecond,
@@ -107,7 +108,7 @@ exports.startCall = async (req, res) => {
     // Return success response with maxSeconds for frontend timer
     return res.json({
       success: true,
-      message: 'Call can be started',
+      message: messages.CALL.CALL_CAN_START,
       data: {
         maxSeconds,
         coinsPerSecond,
@@ -135,7 +136,7 @@ exports.endCall = async (req, res) => {
     if (!receiverId || duration === undefined || duration === null) {
       return res.status(400).json({
         success: false,
-        message: 'receiverId and duration are required'
+        message: messages.CALL.DURATION_REQUIRED
       });
     }
 
@@ -143,7 +144,7 @@ exports.endCall = async (req, res) => {
     if (duration < 0) {
       return res.status(400).json({
         success: false,
-        message: 'Duration cannot be negative'
+        message: messages.CALL.DURATION_NEGATIVE
       });
     }
 
@@ -161,7 +162,7 @@ exports.endCall = async (req, res) => {
 
       return res.json({
         success: true,
-        message: 'Call ended (no charges for 0 duration)',
+        message: messages.CALL.CALL_NO_CHARGES,
         data: {
           duration: 0,
           coinsDeducted: 0,
@@ -178,14 +179,14 @@ exports.endCall = async (req, res) => {
     if (!caller) {
       return res.status(404).json({
         success: false,
-        message: 'Caller not found'
+        message: messages.CALL.CALLER_NOT_FOUND
       });
     }
 
     if (!receiver) {
       return res.status(404).json({
         success: false,
-        message: 'Receiver not found'
+        message: messages.CALL.RECEIVER_NOT_FOUND
       });
     }
 
@@ -217,7 +218,7 @@ exports.endCall = async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        message: 'Insufficient coins',
+        message: messages.CALL.INSUFFICIENT_COINS,
         data: {
           required: requestedCoins,
           available: caller.coinBalance,
@@ -283,7 +284,7 @@ exports.endCall = async (req, res) => {
     // Return success response
     return res.json({
       success: true,
-      message: 'Call ended successfully',
+      message: messages.CALL.CALL_ENDED_SUCCESS,
       data: {
         callId: callRecord._id,
         duration: billableSeconds,
