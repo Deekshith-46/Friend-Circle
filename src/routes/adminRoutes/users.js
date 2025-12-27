@@ -39,6 +39,9 @@ router.post('/cleanup-incomplete-profiles', auth, dynamicPermissionCheck, female
 // Set call rate (coins per second) for female user
 router.post('/set-call-rate', auth, dynamicPermissionCheck, parser.none(), controller.setFemaleCallRate);
 
+// Clean up user references (remove invalid interests/languages references)
+router.post('/:userType/:userId/cleanup-references', auth, dynamicPermissionCheck, controller.cleanUserReferences);
+
 // Test endpoint to verify route is working
 router.get('/test-call-rate-route', (req, res) => {
   res.json({ 

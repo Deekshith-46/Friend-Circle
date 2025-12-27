@@ -368,7 +368,7 @@ exports.loginUser = async (req, res) => {
     if (!user.profileCompleted) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Please complete your profile first before logging in.' 
+        message: 'Please signUp and complete your profile first before logging in.' 
       });
     }
 
@@ -625,14 +625,84 @@ exports.completeUserProfile = async (req, res) => {
   }
 };
 
+// Utility function to clean up invalid interests and languages references
+const cleanUpUserReferences = async (userId) => {
+  try {
+    const FemaleUser = require('../../models/femaleUser/FemaleUser');
+    const Interest = require('../../models/admin/Interest');
+    const Language = require('../../models/admin/Language');
+    
+    const user = await FemaleUser.findById(userId);
+    if (!user) return null;
+    
+    let updateNeeded = false;
+    let updatedInterests = [];
+    let updatedLanguages = [];
+    
+    // Check and clean up interests
+    if (user.interests && user.interests.length > 0) {
+      const validInterests = await Interest.find({ 
+        _id: { $in: user.interests } 
+      });
+      updatedInterests = validInterests.map(i => i._id);
+      if (updatedInterests.length !== user.interests.length) {
+        updateNeeded = true;
+      }
+    }
+    
+    // Check and clean up languages
+    if (user.languages && user.languages.length > 0) {
+      const validLanguages = await Language.find({ 
+        _id: { $in: user.languages } 
+      });
+      updatedLanguages = validLanguages.map(l => l._id);
+      if (updatedLanguages.length !== user.languages.length) {
+        updateNeeded = true;
+      }
+    }
+    
+    // Update user if there are invalid references
+    if (updateNeeded) {
+      await FemaleUser.findByIdAndUpdate(userId, {
+        interests: updatedInterests,
+        languages: updatedLanguages
+      });
+      console.log(`Cleaned up references for user ${userId}`);
+    }
+    
+    return {
+      originalInterestsCount: user.interests ? user.interests.length : 0,
+      validInterestsCount: updatedInterests.length,
+      originalLanguagesCount: user.languages ? user.languages.length : 0,
+      validLanguagesCount: updatedLanguages.length,
+      cleaned: updateNeeded
+    };
+  } catch (error) {
+    console.error('Error cleaning up user references:', error);
+    return null;
+  }
+};
+
 // Get Female User Profile
 exports.getUserProfile = async (req, res) => {
   try {
+    // Clean up invalid references first
+    await cleanUpUserReferences(req.user.id);
+    
     const user = await FemaleUser.findById(req.user.id)
       .select('-otp')
-      .populate('images')
-      .populate('interests', 'title')
-      .populate('languages', 'title');
+      .populate({
+        path: 'images',
+        select: 'femaleUserId imageUrl createdAt updatedAt'
+      })
+      .populate({
+        path: 'interests',
+        select: 'title _id status'
+      })
+      .populate({
+        path: 'languages',
+        select: 'title _id status'
+      });
       
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });

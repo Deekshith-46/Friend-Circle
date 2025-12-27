@@ -4,6 +4,84 @@ const getUserId = require('../../utils/getUserId');
 const Transaction = require('../../models/common/Transaction');
 const AgencyUser = require('../../models/agency/AgencyUser');
 
+// Utility function to clean up invalid interests and languages references for a user
+const cleanUpUserReferences = async (userId) => {
+	try {
+		const FemaleUser = require('../../models/femaleUser/FemaleUser');
+		const Interest = require('../../models/admin/Interest');
+		const Language = require('../../models/admin/Language');
+		
+		const user = await FemaleUser.findById(userId);
+		if (!user) return null;
+		
+		let updateNeeded = false;
+		let updatedInterests = [];
+		let updatedLanguages = [];
+		
+		// Check and clean up interests
+		if (user.interests && user.interests.length > 0) {
+			const validInterests = await Interest.find({ 
+				_id: { $in: user.interests } 
+			});
+			updatedInterests = validInterests.map(i => i._id);
+			if (updatedInterests.length !== user.interests.length) {
+				updateNeeded = true;
+			}
+		}
+		
+		// Check and clean up languages
+		if (user.languages && user.languages.length > 0) {
+			const validLanguages = await Language.find({ 
+				_id: { $in: user.languages } 
+			});
+			updatedLanguages = validLanguages.map(l => l._id);
+			if (updatedLanguages.length !== user.languages.length) {
+				updateNeeded = true;
+			}
+		}
+		
+		// Update user if there are invalid references
+		if (updateNeeded) {
+			await FemaleUser.findByIdAndUpdate(userId, {
+				interests: updatedInterests,
+				languages: updatedLanguages
+			});
+			console.log(`Cleaned up references for user ${userId}`);
+		}
+		
+		return {
+			originalInterestsCount: user.interests ? user.interests.length : 0,
+			validInterestsCount: updatedInterests.length,
+			originalLanguagesCount: user.languages ? user.languages.length : 0,
+			validLanguagesCount: updatedLanguages.length,
+			cleaned: updateNeeded
+		};
+	} catch (error) {
+		console.error('Error cleaning up user references:', error);
+		return null;
+	}
+};
+
+// Clean up user references (admin endpoint)
+exports.cleanUserReferences = async (req, res) => {
+	try {
+		const { userId } = req.params;
+		const result = await cleanUpUserReferences(userId);
+		
+		if (!result) {
+			return res.status(404).json({ success: false, message: 'User not found' });
+		}
+		
+		return res.json({ 
+			success: true, 
+			message: 'User references cleaned up successfully',
+			data: result 
+		});
+	} catch (err) {
+		return res.status(500).json({ success: false, error: err.message });
+	}
+};
+
 // List users
 exports.listUsers = async (req, res) => {
 	try {
@@ -12,13 +90,31 @@ exports.listUsers = async (req, res) => {
 		if (type === 'male') {
 			data = await MaleUser.find();
 		} else if (type === 'female') {
-			data = await FemaleUser.find();
+			data = await FemaleUser.find().populate({
+				path: 'images',
+				select: 'femaleUserId imageUrl createdAt updatedAt'
+			}).populate({
+				path: 'interests',
+				select: 'title _id status'
+			}).populate({
+				path: 'languages',
+				select: 'title _id status'
+			});
 		} else if (type === 'agency') {
 			data = await AgencyUser.find();
 		} else {
 			const [males, females, agencies] = await Promise.all([
 				MaleUser.find(),
-				FemaleUser.find(),
+				FemaleUser.find().populate({
+					path: 'images',
+					select: 'femaleUserId imageUrl createdAt updatedAt'
+				}).populate({
+					path: 'interests',
+					select: 'title _id status'
+				}).populate({
+					path: 'languages',
+					select: 'title _id status'
+				}),
 				AgencyUser.find()
 			]);
 			data = { males, females, agencies };
