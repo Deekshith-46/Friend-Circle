@@ -17,7 +17,8 @@ module.exports = {
     LOGIN_SUCCESS: "Login successful.",
     ACCOUNT_NOT_VERIFIED: "Please verify your account first.",
     ACCOUNT_DEACTIVATED: "Your account has been deactivated by admin or staff.",
-    USER_ALREADY_EXISTS: "User already exists and is verified. Please login instead."
+    USER_ALREADY_EXISTS: "User already exists. Please login instead.",
+    USER_ALREADY_EXISTS_LOGIN: "User already exists, please login"
   },
 
   PROFILE: {
@@ -69,9 +70,10 @@ module.exports = {
   },
 
   REGISTRATION: {
-    PROFILE_NOT_COMPLETED: "Please signUp and complete your profile first before logging in.",
-    REGISTRATION_UNDER_REVIEW: "Your registration is under review or rejected. Please wait for admin approval.",
-    PROFILE_COMPLETED: "Profile is already completed and under review.",
+    PROFILE_NOT_COMPLETED: "Please complete your profile to access the platform.",
+    REGISTRATION_UNDER_REVIEW: "Your profile is under review. Please wait for admin approval.",
+    REGISTRATION_REJECTED: "Your profile has been rejected. Please contact support for more information.",
+    PROFILE_COMPLETED: "Profile is already completed.",
     PROFILE_REQUIRED_FIELDS: "Name, age, gender, and bio are required to complete profile.",
     PROFILE_MIN_IMAGES: "At least one image is required to complete profile.",
     PROFILE_VIDEO_REQUIRED: "A video is required to complete profile.",

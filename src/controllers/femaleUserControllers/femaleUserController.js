@@ -276,7 +276,7 @@ exports.updateTravel = async (req, res) => {
   }
 };
 
-// User Registration (Email and Mobile Number)
+// User Registration (Email and Mobile Number) - ONLY ONCE PER USER
 exports.registerUser = async (req, res) => {
   const { email, mobileNumber, referralCode } = req.body;
   const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
@@ -297,37 +297,19 @@ exports.registerUser = async (req, res) => {
       });
     }
 
-    // Check if user already exists
+    // ⚠️ IMPORTANT: Check if user already exists - NO MULTIPLE SIGNUPS ALLOWED
     const existingUser = await FemaleUser.findOne({ $or: [{ email }, { mobileNumber }] });
     
     if (existingUser) {
-      // If user exists but profile is not completed, allow re-registration
-      if (!existingUser.profileCompleted) {
-        // Delete the incomplete profile and allow fresh registration
-        await FemaleUser.findByIdAndDelete(existingUser._id);
-        // Continue with new registration below
-      } else if (!existingUser.isVerified || !existingUser.isActive) {
-        // Profile is complete but awaiting verification - resend OTP
-        existingUser.otp = otp;
-        await existingUser.save();
-        await sendOtp(email, otp);
-        
-        return res.status(201).json({
-          success: true,
-          message: messages.AUTH.OTP_SENT_EMAIL,
-          otp: otp // For testing purposes
-        });
-      } else {
-        // User is already verified and active with complete profile
-        return res.status(400).json({ 
-          success: false, 
-          message: messages.AUTH.USER_ALREADY_EXISTS
-        });
-      }
+      // User already exists - REJECT signup, redirect to login
+      return res.status(400).json({ 
+        success: false, 
+        message: messages.AUTH.USER_ALREADY_EXISTS_LOGIN,
+        redirectTo: 'LOGIN'
+      });
     }
 
-    // Create a temporary user entry with just email, mobile, and OTP
-    // Profile details will be added after OTP verification
+    // Generate unique referral code for new user
     const generateReferralCode = require('../../utils/generateReferralCode');
     let myReferral = generateReferralCode();
     while (await FemaleUser.findOne({ referralCode: myReferral })) {
@@ -346,6 +328,7 @@ exports.registerUser = async (req, res) => {
       }
     }
 
+    // Create new user with initial state
     const newUser = new FemaleUser({ 
       email, 
       mobileNumber, 
@@ -353,9 +336,10 @@ exports.registerUser = async (req, res) => {
       referralCode: myReferral, 
       referredByFemale: referredByFemale?._id, 
       referredByAgency: referredByAgency?._id,
-      isVerified: false,
-      isActive: false,
-      profileCompleted: false // Profile not completed yet
+      isVerified: false,      // Will be true after OTP verification
+      isActive: false,        // Will be true after OTP verification
+      profileCompleted: false, // Will be true after profile completion
+      reviewStatus: 'completeProfile' // Initial state
     });
     await newUser.save();
     await sendOtp(email, otp); // Send OTP via SendGrid
@@ -370,7 +354,7 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// Login Female User (Send OTP)
+// Login Female User (Send OTP) - ALWAYS ALLOWED AFTER OTP VERIFICATION
 exports.loginUser = async (req, res) => {
   const { email } = req.body;
 
@@ -389,26 +373,11 @@ exports.loginUser = async (req, res) => {
       return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
 
-    // Check if user has completed profile
-    if (!user.profileCompleted) {
-      return res.status(403).json({ 
-        success: false, 
-        message: messages.REGISTRATION.PROFILE_NOT_COMPLETED
-      });
-    }
-
-    // Registration review gate
-    if (user.reviewStatus !== 'approved') {
-      return res.status(403).json({ 
-        success: false, 
-        message: messages.REGISTRATION.REGISTRATION_UNDER_REVIEW
-      });
-    }
-
-    // Check if user is verified
+    // Check if user is verified (OTP verified during signup)
     if (!user.isVerified) {
       return res.status(400).json({ success: false, message: messages.AUTH.ACCOUNT_NOT_VERIFIED });
     }
+    
     // Check if user is active
     if (user.status === 'inactive') {
       return res.status(403).json({ success: false, message: messages.AUTH.ACCOUNT_DEACTIVATED });
@@ -432,7 +401,7 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// Verify Login OTP
+// Verify Login OTP - Returns reviewStatus-based response
 exports.verifyLoginOtp = async (req, res) => {
   const { otp } = req.body;
 
@@ -447,15 +416,33 @@ exports.verifyLoginOtp = async (req, res) => {
       // Generate JWT token
       const token = generateToken(user._id);
 
+      // Determine redirect based on reviewStatus
+      let redirectTo = 'COMPLETE_PROFILE'; // default
+      
+      if (user.reviewStatus === 'completeProfile') {
+        redirectTo = 'COMPLETE_PROFILE';
+      } else if (user.reviewStatus === 'pending') {
+        redirectTo = 'UNDER_REVIEW';
+      } else if (user.reviewStatus === 'accepted') {
+        redirectTo = 'DASHBOARD';
+      } else if (user.reviewStatus === 'rejected') {
+        redirectTo = 'REJECTED';
+      }
+
       res.json({
         success: true,
         message: messages.AUTH.LOGIN_SUCCESS,
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          mobileNumber: user.mobileNumber
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            mobileNumber: user.mobileNumber,
+            profileCompleted: user.profileCompleted,
+            reviewStatus: user.reviewStatus
+          },
+          redirectTo: redirectTo
         }
       });
     } else {
@@ -475,18 +462,25 @@ exports.verifyOtp = async (req, res) => {
 
     if (user) {
       const token = generateToken(user._id);
-      user.isVerified = true; // Mark the user as verified
-      user.isActive = true;   // Mark the user as active
-      user.otp = undefined;   // Clear OTP after verification
-      // NOTE: profileCompleted remains false until user completes profile
-      // Referral bonus will be awarded after profile completion
+      
+      // After OTP verification:
+      user.isVerified = true;  // Mark as verified
+      user.isActive = true;    // Mark as active
+      user.otp = undefined;    // Clear OTP
+      user.reviewStatus = 'completeProfile'; // Ensure status is completeProfile
+      // profileCompleted remains false until profile is completed
 
       await user.save();
+      
       res.json({ 
         success: true, 
         token,
         message: messages.AUTH.OTP_VERIFIED,
-        profileCompleted: false
+        data: {
+          profileCompleted: false,
+          reviewStatus: 'completeProfile',
+          redirectTo: 'COMPLETE_PROFILE'
+        }
       });
     } else {
       res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
@@ -520,21 +514,58 @@ exports.addUserInfo = async (req, res) => {
   }
 };
 
-// Complete user profile after OTP verification
+// Complete user profile after OTP verification - UNIFIED API (accepts multipart form-data)
+// Accepts: images (multipart), video (multipart), profile details (form fields)
 exports.completeUserProfile = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { name, age, gender, bio, interests, languages, hobbies, sports, film, music, travel } = req.body;
+    
+    // Helper function to parse string values that might be JSON-encoded
+    const parseValue = (value) => {
+      if (typeof value === 'string') {
+        // Remove quotes if present
+        const trimmed = value.trim();
+        if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+          return trimmed.slice(1, -1);
+        }
+        // Try to parse as JSON array/object
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          try {
+            return JSON.parse(trimmed);
+          } catch (e) {
+            return value;
+          }
+        }
+        return value;
+      }
+      return value;
+    };
+    
+    // Parse and sanitize incoming data
+    const name = parseValue(req.body.name);
+    const age = parseValue(req.body.age);
+    const gender = parseValue(req.body.gender);
+    const bio = parseValue(req.body.bio);
+    const interests = parseValue(req.body.interests);
+    const languages = parseValue(req.body.languages);
+    const hobbies = parseValue(req.body.hobbies);
+    const sports = parseValue(req.body.sports);
+    const film = parseValue(req.body.film);
+    const music = parseValue(req.body.music);
+    const travel = parseValue(req.body.travel);
+    
+    // Debug logging
+    console.log('Raw interests:', req.body.interests, 'Type:', typeof req.body.interests);
+    console.log('Parsed interests:', interests, 'Type:', typeof interests, 'IsArray:', Array.isArray(interests));
+    console.log('Raw languages:', req.body.languages, 'Type:', typeof req.body.languages);
+    console.log('Parsed languages:', languages, 'Type:', typeof languages, 'IsArray:', Array.isArray(languages));
     
     // Find the user
     const user = await FemaleUser.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
     }
-    
-    // Get admin config for referral bonus
-    const adminConfig = await AdminConfig.getConfig();
-    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
 
     // Check if profile is already completed
     if (user.profileCompleted) {
@@ -552,36 +583,137 @@ exports.completeUserProfile = async (req, res) => {
       });
     }
 
-    // Check if at least one image is uploaded
-    if (!user.images || user.images.length === 0) {
+    // Handle image uploads from multipart request
+    const uploadedImages = req.files?.images || [];
+    const uploadedVideo = req.files?.video?.[0];
+    
+    // Check if images provided (either in request or already uploaded)
+    const hasImages = uploadedImages.length > 0 || (user.images && user.images.length > 0);
+    if (!hasImages) {
       return res.status(400).json({ 
         success: false, 
         message: messages.REGISTRATION.PROFILE_MIN_IMAGES
       });
     }
 
-    // Check if video is uploaded
-    if (!user.videoUrl) {
+    // Check if video provided (either in request or already uploaded)
+    const hasVideo = uploadedVideo || user.videoUrl;
+    if (!hasVideo) {
       return res.status(400).json({ 
         success: false, 
         message: messages.REGISTRATION.PROFILE_VIDEO_REQUIRED
       });
     }
 
+    // Process uploaded images (if provided in this request)
+    if (uploadedImages.length > 0) {
+      const currentCount = Array.isArray(user.images) ? user.images.length : 0;
+      const remainingSlots = Math.max(0, 5 - currentCount);
+      const filesToProcess = uploadedImages.slice(0, remainingSlots);
+      
+      const createdImageIds = [];
+      for (const f of filesToProcess) {
+        const newImage = await FemaleImage.create({ femaleUserId: userId, imageUrl: f.path });
+        createdImageIds.push(newImage._id);
+      }
+      
+      user.images = [...(user.images || []), ...createdImageIds];
+    }
+
+    // Process uploaded video (if provided in this request)
+    if (uploadedVideo) {
+      user.videoUrl = uploadedVideo.path;
+    }
+
+    // Get admin config for referral bonus
+    const adminConfig = await AdminConfig.getConfig();
+    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
+
     // Update user profile
     user.name = name;
     user.age = age;
     user.gender = gender;
     user.bio = bio;
-    if (interests) user.interests = interests;
-    if (languages) user.languages = languages;
-    if (hobbies) user.hobbies = hobbies;
-    if (sports) user.sports = sports;
-    if (film) user.film = film;
-    if (music) user.music = music;
-    if (travel) user.travel = travel;
-    user.profileCompleted = true;
-    user.reviewStatus = 'pending'; // Set review status to pending for admin approval
+    
+    // Arrays - only update if provided and validate ObjectIds
+    if (interests && Array.isArray(interests) && interests.length > 0) {
+      console.log('✅ Setting interests:', interests);
+      // Validate that these interest IDs exist
+      const Interest = require('../../models/admin/Interest');
+      const validInterests = await Interest.find({ _id: { $in: interests } });
+      console.log('Valid interests found:', validInterests.length, 'out of', interests.length);
+      user.interests = validInterests.map(i => i._id);
+    } else {
+      console.log('❌ Not setting interests. Value:', interests, 'IsArray:', Array.isArray(interests), 'Length:', interests?.length);
+    }
+    
+    if (languages && Array.isArray(languages) && languages.length > 0) {
+      console.log('✅ Setting languages:', languages);
+      // Validate that these language IDs exist
+      const Language = require('../../models/admin/Language');
+      const validLanguages = await Language.find({ _id: { $in: languages } });
+      console.log('Valid languages found:', validLanguages.length, 'out of', languages.length);
+      user.languages = validLanguages.map(l => l._id);
+    } else {
+      console.log('❌ Not setting languages. Value:', languages, 'IsArray:', Array.isArray(languages), 'Length:', languages?.length);
+    }
+    
+    if (hobbies && Array.isArray(hobbies) && hobbies.length > 0) {
+      user.hobbies = hobbies.map(item => {
+        if (typeof item === 'object' && item.id && item.name) {
+          return { id: item.id, name: item.name };
+        }
+        const id = require('crypto').randomBytes(8).toString('hex');
+        const name = item.name || item;
+        return { id, name };
+      });
+    }
+    if (sports && Array.isArray(sports) && sports.length > 0) {
+      user.sports = sports.map(item => {
+        if (typeof item === 'object' && item.id && item.name) {
+          return { id: item.id, name: item.name };
+        }
+        const id = require('crypto').randomBytes(8).toString('hex');
+        const name = item.name || item;
+        return { id, name };
+      });
+    }
+    if (film && Array.isArray(film) && film.length > 0) {
+      user.film = film.map(item => {
+        if (typeof item === 'object' && item.id && item.name) {
+          return { id: item.id, name: item.name };
+        }
+        const id = require('crypto').randomBytes(8).toString('hex');
+        const name = item.name || item;
+        return { id, name };
+      });
+    }
+    if (music && Array.isArray(music) && music.length > 0) {
+      user.music = music.map(item => {
+        if (typeof item === 'object' && item.id && item.name) {
+          return { id: item.id, name: item.name };
+        }
+        const id = require('crypto').randomBytes(8).toString('hex');
+        const name = item.name || item;
+        return { id, name };
+      });
+    }
+    if (travel && Array.isArray(travel) && travel.length > 0) {
+      user.travel = travel.map(item => {
+        if (typeof item === 'object' && item.id && item.name) {
+          return { id: item.id, name: item.name };
+        }
+        const id = require('crypto').randomBytes(8).toString('hex');
+        const name = item.name || item;
+        return { id, name };
+      });
+    }
+    
+    console.log('📝 User before save - interests:', user.interests, 'languages:', user.languages);
+    
+    // 🔑 KEY STATE CHANGES:
+    user.profileCompleted = true;      // Profile is now complete
+    user.reviewStatus = 'pending';     // Set to pending for admin review
 
     // Award referral bonus after profile completion
     if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
@@ -591,7 +723,7 @@ exports.completeUserProfile = async (req, res) => {
         const FemaleModel = require('../../models/femaleUser/FemaleUser');
         const referrer = await FemaleModel.findById(user.referredByFemale);
         if (referrer) {
-          // Add referral bonus to walletBalance instead of coinBalance
+          // Add referral bonus to walletBalance
           referrer.walletBalance = (referrer.walletBalance || 0) + referralBonusAmount;
           user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
           await referrer.save();
@@ -619,7 +751,7 @@ exports.completeUserProfile = async (req, res) => {
           user.referralBonusAwarded = true;
         }
       } else if (user.referredByAgency) {
-        // Add referral bonus to walletBalance instead of coinBalance
+        // Add referral bonus to walletBalance
         user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
         await Transaction.create({ 
           userType: 'female', 
@@ -642,7 +774,10 @@ exports.completeUserProfile = async (req, res) => {
       message: messages.REGISTRATION.PROFILE_COMPLETED_SUCCESS,
       data: {
         profileCompleted: true,
-        reviewStatus: 'pending'
+        reviewStatus: 'pending',
+        redirectTo: 'UNDER_REVIEW',
+        uploadedImages: uploadedImages.length,
+        uploadedVideo: !!uploadedVideo
       }
     });
   } catch (err) {
@@ -738,26 +873,174 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// Update Female User Info
+// Update User Info
 exports.updateUserInfo = async (req, res) => {
-  const { name, age, gender, bio, videoUrl, interests, languages, hobbies, sports, film, music, travel } = req.body; // images is managed via upload endpoint
   try {
     const user = await FemaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+
+    // Helper function to parse form-data values (handles JSON strings)
+    const parseFormValue = (value) => {
+      if (!value) return value;
+      if (typeof value === 'string') {
+        // Remove surrounding quotes if present
+        const trimmed = value.trim();
+        if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+            (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+          return trimmed.slice(1, -1);
+        }
+        // Try to parse as JSON array/object
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          try {
+            return JSON.parse(trimmed);
+          } catch (e) {
+            console.error('Failed to parse JSON:', trimmed, e);
+            return value;
+          }
+        }
+        return value;
+      }
+      return value;
+    };
+
+    // Parse all incoming values
+    const name = parseFormValue(req.body.name);
+    const age = parseFormValue(req.body.age);
+    const gender = parseFormValue(req.body.gender);
+    const bio = parseFormValue(req.body.bio);
+    const videoUrl = parseFormValue(req.body.videoUrl);
+    const interests = parseFormValue(req.body.interests);
+    const languages = parseFormValue(req.body.languages);
+    const hobbies = parseFormValue(req.body.hobbies);
+    const sports = parseFormValue(req.body.sports);
+    const film = parseFormValue(req.body.film);
+    const music = parseFormValue(req.body.music);
+    const travel = parseFormValue(req.body.travel);
+
+    console.log('📥 Parsed values:', { name, age, bio, travel, hobbies, sports, film, music });
+
+    // Update basic fields
     if (name) user.name = name;
     if (age) user.age = age;
     if (gender) user.gender = gender;
     if (bio) user.bio = bio;
     if (videoUrl) user.videoUrl = videoUrl;
-    if (interests) user.interests = interests;
-    if (languages) user.languages = languages;
-    if (hobbies) user.hobbies = hobbies;
-    if (sports) user.sports = sports;
-    if (film) user.film = film;
-    if (music) user.music = music;
-    if (travel) user.travel = travel;
+    
+    // Update interests if provided and validate
+    if (interests) {
+      const Interest = require('../../models/admin/Interest');
+      const interestArray = Array.isArray(interests) ? interests : [interests];
+      const validInterests = await Interest.find({ _id: { $in: interestArray } });
+      user.interests = validInterests.map(i => i._id);
+    }
+    
+    // Update languages if provided and validate
+    if (languages) {
+      const Language = require('../../models/admin/Language');
+      const languageArray = Array.isArray(languages) ? languages : [languages];
+      const validLanguages = await Language.find({ _id: { $in: languageArray } });
+      user.languages = validLanguages.map(l => l._id);
+    }
+    
+    // Helper to process preference arrays
+    const processPreferenceArray = (items, fieldName) => {
+      if (!items || !Array.isArray(items) || items.length === 0) return null;
+      
+      console.log(`Processing ${fieldName}:`, items);
+      
+      try {
+        const processed = items.map((item, index) => {
+          console.log(`  Item ${index}:`, item, 'Type:', typeof item);
+          
+          if (!item) {
+            console.log(`  Skipping null/undefined item at index ${index}`);
+            return null;
+          }
+          
+          if (typeof item === 'object' && item !== null) {
+            if (item.id && item.name) {
+              return { id: item.id, name: item.name };
+            }
+            console.warn(`  Item ${index} missing id or name:`, item);
+            return null;
+          }
+          
+          // Handle string or primitive
+          const id = require('crypto').randomBytes(8).toString('hex');
+          const name = String(item);
+          return { id, name };
+        }).filter(Boolean);
+        
+        console.log(`  Processed ${fieldName}:`, processed);
+        return processed;
+      } catch (err) {
+        console.error(`Error processing ${fieldName}:`, err);
+        throw err;
+      }
+    };
+    
+    // Update preferences - APPEND new items to existing arrays
+    if (hobbies) {
+      const newHobbies = processPreferenceArray(hobbies, 'hobbies');
+      if (newHobbies && newHobbies.length > 0) {
+        const existingIds = (user.hobbies || []).map(h => h.id);
+        const uniqueNew = newHobbies.filter(h => !existingIds.includes(h.id));
+        user.hobbies = [...(user.hobbies || []), ...uniqueNew];
+      }
+    }
+    
+    if (sports) {
+      const newSports = processPreferenceArray(sports, 'sports');
+      if (newSports && newSports.length > 0) {
+        const existingIds = (user.sports || []).map(s => s.id);
+        const uniqueNew = newSports.filter(s => !existingIds.includes(s.id));
+        user.sports = [...(user.sports || []), ...uniqueNew];
+      }
+    }
+    
+    if (film) {
+      const newFilm = processPreferenceArray(film, 'film');
+      if (newFilm && newFilm.length > 0) {
+        const existingIds = (user.film || []).map(f => f.id);
+        const uniqueNew = newFilm.filter(f => !existingIds.includes(f.id));
+        user.film = [...(user.film || []), ...uniqueNew];
+      }
+    }
+    
+    if (music) {
+      const newMusic = processPreferenceArray(music, 'music');
+      if (newMusic && newMusic.length > 0) {
+        const existingIds = (user.music || []).map(m => m.id);
+        const uniqueNew = newMusic.filter(m => !existingIds.includes(m.id));
+        user.music = [...(user.music || []), ...uniqueNew];
+      }
+    }
+    
+    if (travel) {
+      const newTravel = processPreferenceArray(travel, 'travel');
+      if (newTravel && newTravel.length > 0) {
+        const existingIds = (user.travel || []).map(t => t.id);
+        const uniqueNew = newTravel.filter(t => !existingIds.includes(t.id));
+        user.travel = [...(user.travel || []), ...uniqueNew];
+      }
+    }
+    
     await user.save();
-    res.json({ success: true, data: user });
+    
+    // Return updated user with populated fields
+    const updatedUser = await FemaleUser.findById(user._id)
+      .populate('interests', 'title')
+      .populate('languages', 'title');
+    
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      data: updatedUser 
+    });
   } catch (err) {
+    console.error('❌ Error in updateUserInfo:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 };
@@ -825,7 +1108,7 @@ exports.getWithdrawalHistory = async (req, res) => {
   }
 };
 
-// Upload Images (multipart form-data)
+// Upload Images (for profile completion or later updates)
 exports.uploadImage = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -833,11 +1116,18 @@ exports.uploadImage = async (req, res) => {
     }
 
     const user = await FemaleUser.findById(req.user.id).populate('images');
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
 
     const currentCount = Array.isArray(user.images) ? user.images.length : 0;
     const remainingSlots = Math.max(0, 5 - currentCount);
+    
     if (remainingSlots === 0) {
-      return res.status(400).json({ success: false, message: messages.REGISTRATION.IMAGE_LIMIT_REACHED });
+      return res.status(400).json({ 
+        success: false, 
+        message: messages.REGISTRATION.IMAGE_LIMIT_REACHED 
+      });
     }
 
     const filesToProcess = req.files.slice(0, remainingSlots);
@@ -845,24 +1135,42 @@ exports.uploadImage = async (req, res) => {
 
     const createdImageIds = [];
     for (const f of filesToProcess) {
-      const newImage = await FemaleImage.create({ femaleUserId: req.user.id, imageUrl: f.path });
+      const newImage = await FemaleImage.create({ 
+        femaleUserId: req.user.id, 
+        imageUrl: f.path 
+      });
       createdImageIds.push(newImage._id);
     }
 
     user.images = [...(user.images || []).map(img => img._id ? img._id : img), ...createdImageIds];
     await user.save();
 
-    return res.json({ success: true, message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, added: createdImageIds.length, skipped });
+    // Populate and return
+    const updatedUser = await FemaleUser.findById(user._id).populate('images');
+
+    return res.json({ 
+      success: true, 
+      message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, 
+      data: {
+        added: createdImageIds.length, 
+        skipped: skipped,
+        totalImages: updatedUser.images.length,
+        images: updatedUser.images
+      }
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 };
 
-// Upload Video (multipart form-data)
+// Upload Video (for profile completion or later updates)
 exports.uploadVideo = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: messages.NOTIFICATION.NO_VIDEO_UPLOADED });
+      return res.status(400).json({ 
+        success: false, 
+        message: messages.NOTIFICATION.NO_VIDEO_UPLOADED 
+      });
     }
 
     const videoUrl = req.file.path;
@@ -870,31 +1178,34 @@ exports.uploadVideo = async (req, res) => {
     const resourceType = req.file.resource_type || 'video';
     const duration = req.file.duration;
     const bytes = req.file.bytes;
-    const user = await FemaleUser.findById(req.user.id);
     
-    // Delete old video if exists
-    if (user.videoUrl) {
-      // You might want to delete the old video from Cloudinary here
-      // For now, we'll just replace the URL
+    const user = await FemaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
     }
     
+    // Store old video URL for potential cleanup
+    const oldVideoUrl = user.videoUrl;
+    
+    // Update with new video
     user.videoUrl = videoUrl;
     await user.save();
 
     res.json({ 
       success: true,
       message: messages.NOTIFICATION.VIDEO_UPLOADED_SUCCESS,
-      // New structured payload for frontend consumers
       data: {
         url: videoUrl,
         secureUrl: videoUrl,
         publicId,
         resourceType,
         duration,
-        bytes
-      },
-      // Backward compatibility
-      videoUrl: videoUrl 
+        bytes,
+        replacedOldVideo: !!oldVideoUrl
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -908,17 +1219,124 @@ exports.deleteImage = async (req, res) => {
 
     const imageDoc = await FemaleImage.findById(imageId);
     if (!imageDoc) {
-      return res.status(404).json({ success: false, message: messages.USER.IMAGE_NOT_FOUND });
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.USER.IMAGE_NOT_FOUND 
+      });
     }
+    
     if (String(imageDoc.femaleUserId) !== String(req.user.id)) {
-      return res.status(403).json({ success: false, message: messages.USER.NOT_AUTHORIZED_DELETE_IMAGE });
+      return res.status(403).json({ 
+        success: false, 
+        message: messages.USER.NOT_AUTHORIZED_DELETE_IMAGE 
+      });
     }
 
     // Remove ref from user.images and delete image document
-    await FemaleUser.updateOne({ _id: req.user.id }, { $pull: { images: imageDoc._id } });
+    await FemaleUser.updateOne(
+      { _id: req.user.id }, 
+      { $pull: { images: imageDoc._id } }
+    );
     await FemaleImage.deleteOne({ _id: imageDoc._id });
+    
+    // Get updated user with remaining images
+    const user = await FemaleUser.findById(req.user.id).populate('images');
 
-    return res.json({ success: true, message: messages.IMAGE.IMAGE_DELETED });
+    return res.json({ 
+      success: true, 
+      message: messages.IMAGE.IMAGE_DELETED,
+      data: {
+        deletedImageId: imageId,
+        remainingImages: user.images.length,
+        images: user.images
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete video
+exports.deleteVideo = async (req, res) => {
+  try {
+    const user = await FemaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
+    }
+    
+    if (!user.videoUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No video to delete' 
+      });
+    }
+    
+    // Store video URL for potential Cloudinary cleanup
+    const deletedVideoUrl = user.videoUrl;
+    
+    // Remove video URL
+    user.videoUrl = null;
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: 'Video deleted successfully',
+      data: {
+        deletedVideoUrl,
+        hasVideo: false
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete preference item (hobbies, sports, film, music, travel)
+exports.deletePreferenceItem = async (req, res) => {
+  try {
+    const { type, itemId } = req.params; // type: hobbies|sports|film|music|travel
+    
+    const validTypes = ['hobbies', 'sports', 'film', 'music', 'travel'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid type. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+    
+    const user = await FemaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
+    }
+    
+    // Remove item by MongoDB's _id (subdocument ID)
+    const originalLength = (user[type] || []).length;
+    user[type] = (user[type] || []).filter(item => String(item._id) !== String(itemId));
+    
+    if (user[type].length === originalLength) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Item with _id ${itemId} not found in ${type}` 
+      });
+    }
+    
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: `${type} item deleted successfully`,
+      data: {
+        type,
+        deletedItemId: itemId,
+        remaining: user[type]
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -941,7 +1359,7 @@ exports.listMaleUsers = async (req, res) => {
 
     const filter = { 
       status: 'active', 
-      reviewStatus: 'approved',
+      reviewStatus: 'accepted',
       _id: { 
         $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
       }

@@ -129,7 +129,7 @@ exports.getWeeklyRanking = async (req, res) => {
     // Get all female users with their weekly earnings
     const femaleUsers = await FemaleUser.find({ 
       status: 'active',
-      reviewStatus: 'approved'
+      reviewStatus: 'accepted'
     });
     
     // Calculate weekly earnings for each user

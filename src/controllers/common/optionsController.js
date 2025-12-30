@@ -8,7 +8,7 @@ const Plan = require('../../models/admin/Plan');
 const Package = require('../../models/admin/Package');
 const Page = require('../../models/admin/Page');
 
-// Public endpoint to fetch selectable options for users
+// Public endpoint to fetch all selectable options for users
 exports.getSelectableOptions = async (req, res) => {
   try {
     const statusFilter = { status: 'publish' };
@@ -47,6 +47,28 @@ exports.getSelectableOptions = async (req, res) => {
         plans,
         packages,
         pages
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Public endpoint to fetch female user options (interests and languages only)
+exports.getFemaleUserOptions = async (req, res) => {
+  try {
+    const statusFilter = { status: 'publish' };
+
+    const [interests, languages] = await Promise.all([
+      Interest.find(statusFilter).select('_id title'),
+      Language.find(statusFilter).select('_id title')
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        interests,
+        languages
       }
     });
   } catch (err) {

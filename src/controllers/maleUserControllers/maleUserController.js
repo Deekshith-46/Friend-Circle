@@ -632,7 +632,7 @@ exports.listFemaleUsers = async (req, res) => {
 
     const filter = { 
       status: 'active', 
-      reviewStatus: 'approved',
+      reviewStatus: 'accepted',
       _id: { 
         $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
       }

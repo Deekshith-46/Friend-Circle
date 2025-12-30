@@ -12,7 +12,7 @@ exports.calculateDailyRewards = async () => {
     // Get all female users
     const femaleUsers = await FemaleUser.find({ 
       status: 'active',
-      reviewStatus: 'approved'
+      reviewStatus: 'accepted'
     });
     
     // Get all daily reward configurations
@@ -111,7 +111,7 @@ exports.calculateWeeklyRewards = async () => {
     // Get all female users
     const femaleUsers = await FemaleUser.find({ 
       status: 'active',
-      reviewStatus: 'approved'
+      reviewStatus: 'accepted'
     });
     
     // Calculate weekly earnings for each user

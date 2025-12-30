@@ -14,10 +14,12 @@ router.post('/verify-login-otp', agencyUserController.agencyVerifyLoginOtp);
 
 // Profile
 router.get('/me', auth, agencyUserController.agencyMe);
-router.put('/details', auth, agencyUserController.agencySaveDetails);
 
-// Upload image via form-data (field: image)
-router.post('/upload-image', auth, parser.single('image'), agencyUserController.agencyUploadImage);
+// Complete agency profile via form-data (fields: firstName, lastName, aadharOrPanNum, image)
+router.post('/complete-profile', auth, parser.single('image'), agencyUserController.completeAgencyProfile);
+
+// Update agency profile via form-data (fields: firstName, lastName, aadharOrPanNum, image)
+router.put('/profile', auth, parser.single('image'), agencyUserController.updateAgencyProfile);
 
 // KYC Routes
 router.use('/kyc', require('./kycRoutes'));

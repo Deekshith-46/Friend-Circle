@@ -17,14 +17,29 @@ const femaleUserSchema = new mongoose.Schema({
   videoUrl: String, // URL for the 10-second live video
   interests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Interest' }],
   languages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Language' }],
-  // New fields for manually entered preferences
-  hobbies: [{ type: String }],
-  sports: [{ type: String }],
-  film: [{ type: String }],
-  music: [{ type: String }],
-  travel: [{ type: String }],
+  // New fields for manually entered preferences (stored as {id, name})
+  hobbies: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  sports: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  film: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  music: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  travel: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
-  reviewStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  reviewStatus: { type: String, enum: ['completeProfile', 'pending', 'accepted', 'rejected'], default: 'completeProfile' },
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: false }, // Only true after OTP verification
   profileCompleted: { type: Boolean, default: false }, // True only after user completes profile with all details

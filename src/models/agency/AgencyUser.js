@@ -13,12 +13,12 @@ const agencyUserSchema = new mongoose.Schema({
 	isActive: { type: Boolean, default: false }, // Only true after OTP verification
 	firstName: { type: String },
 	lastName: { type: String },
-	aadharNumber: { type: String },
-	panNumber: { type: String },
+	aadharOrPanNum: { type: String },
 	image: { type: String },
 	referralCode: { type: String, unique: true, sparse: true },
 	status: { type: String, enum: ['active', 'inactive'], default: 'inactive' },
-	reviewStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+	profileCompleted: { type: Boolean, default: false },
+	reviewStatus: { type: String, enum: ['completeProfile', 'pending', 'accepted', 'rejected'], default: 'completeProfile' },
 	kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' }
 }, { timestamps: true });
 

@@ -188,9 +188,9 @@ exports.operateBalance = async (req, res) => {
 // Approve/Reject registration for female or agency
 exports.reviewRegistration = async (req, res) => {
     try {
-        const { userType, userId, reviewStatus } = req.body; // userType: 'female' | 'agency'; reviewStatus: 'approved' | 'rejected'
+        const { userType, userId, reviewStatus } = req.body; // userType: 'female' | 'agency'; reviewStatus: 'accepted' | 'rejected'
         if (!['female', 'agency'].includes(userType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
-        if (!['approved', 'rejected'].includes(reviewStatus)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_REVIEW_STATUS });
+        if (!['accepted', 'rejected'].includes(reviewStatus)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_REVIEW_STATUS });
         const Model = userType === 'female' ? FemaleUser : AgencyUser;
         const user = await Model.findByIdAndUpdate(userId, { reviewStatus }, { new: true });
         if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
