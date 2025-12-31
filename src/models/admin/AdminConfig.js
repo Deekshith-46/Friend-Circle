@@ -17,8 +17,15 @@ const adminConfigSchema = new mongoose.Schema({
     default: 500, // Minimum withdrawal amount in Rupees
     min: 0
   },
-  // Referral bonus settings
-  referralBonus: {
+  femaleReferralBonus: {
+    type: Number,
+    default: 100   // coins
+  },
+  agencyReferralBonus: {
+    type: Number,
+    default: 0     // coins
+  },
+  maleReferralBonus: {
     type: Number,
     default: 100   // coins
   },

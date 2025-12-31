@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 // Generic transaction model for wallet and coin operations across Male/Female users
 const transactionSchema = new mongoose.Schema({
-  userType: { type: String, enum: ['male', 'female'], required: true },
+  userType: { type: String, enum: ['male', 'female', 'agency'], required: true },
   userId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
   operationType: { type: String, enum: ['wallet', 'coin'], required: true },
   action: { type: String, enum: ['credit', 'debit'], required: true },

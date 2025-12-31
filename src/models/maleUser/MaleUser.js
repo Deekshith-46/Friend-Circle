@@ -32,10 +32,10 @@ const maleUserSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   isActive: { type: Boolean, default: false }, // Only true after OTP verification
   otp: { type: Number }, // OTP for verification
+  profileCompleted: { type: Boolean, default: false }, // Track if user has completed profile
   // Referral system
   referralCode: { type: String, unique: true, sparse: true }, // 8-char alphanumeric
-  referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }, // Who referred this user
-  referralBonusAwarded: { type: Boolean, default: false }, // Ensure one-time award after verification
+  referredBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }], 
 }, { timestamps: true });
 
 module.exports = mongoose.model('MaleUser', maleUserSchema);

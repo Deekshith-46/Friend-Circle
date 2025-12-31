@@ -3,6 +3,7 @@ const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const getUserId = require('../../utils/getUserId');
 const Transaction = require('../../models/common/Transaction');
 const AgencyUser = require('../../models/agency/AgencyUser');
+const mongoose = require('mongoose');
 const { isValidEmail, isValidMobile } = require('../../validations/validations');
 const messages = require('../../validations/messages');
 
@@ -191,9 +192,116 @@ exports.reviewRegistration = async (req, res) => {
         const { userType, userId, reviewStatus } = req.body; // userType: 'female' | 'agency'; reviewStatus: 'accepted' | 'rejected'
         if (!['female', 'agency'].includes(userType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
         if (!['accepted', 'rejected'].includes(reviewStatus)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_REVIEW_STATUS });
+        
         const Model = userType === 'female' ? FemaleUser : AgencyUser;
+        
+        // Get the user before update to check old review status
+        const userBeforeUpdate = await Model.findById(userId);
+        if (!userBeforeUpdate) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+        
+        const oldReviewStatus = userBeforeUpdate.reviewStatus;
+        
+        // Update the review status
         const user = await Model.findByIdAndUpdate(userId, { reviewStatus }, { new: true });
-        if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+        
+        // Trigger referral bonus if status changed to "accepted" from a non-accepted status
+        if (reviewStatus === 'accepted' && oldReviewStatus !== 'accepted') {
+            
+            if (userType === 'female') {
+                // Process referral bonus for female user
+                const processReferralBonus = require('../../utils/processReferralBonus');
+                await processReferralBonus(user, 'female');
+            }
+            
+            if (userType === 'agency') {
+                // Process referral bonus for agency user
+                const processReferralBonus = require('../../utils/processReferralBonus');
+                await processReferralBonus(user, 'agency');
+            }
+        }
+        
+        return res.json({ success: true, data: user });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+// Update KYC status by admin (alternative to updating individual KYC records)
+exports.updateKYCStatus = async (req, res) => {
+    try {
+        const { userId, userType, kycStatus } = req.body;
+        // userType = 'female' | 'agency'
+        // kycStatus = 'accepted' | 'rejected'
+
+        if (!['female', 'agency'].includes(userType)) {
+            return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_USER_TYPE });
+        }
+        
+        if (!['accepted', 'rejected'].includes(kycStatus)) {
+            return res.status(400).json({ success: false, message: 'Invalid KYC status' });
+        }
+        
+        let Model;
+        if (userType === 'female') {
+            Model = FemaleUser;
+        } else {
+            Model = AgencyUser;
+        }
+        
+        const user = await Model.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+        }
+
+        if (user.kycStatus !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'KYC is not under review'
+            });
+        }
+
+        // Update overall kycStatus and ensure at least one method is updated
+        user.kycStatus = kycStatus;
+        
+        // If overall status is being set to accepted/rejected, ensure at least one method reflects this
+        if (kycStatus === 'accepted' && user.kycDetails) {
+            // Mark any pending methods as accepted
+            if (user.kycDetails.bank && user.kycDetails.bank.status === 'pending') {
+                user.kycDetails.bank.status = 'accepted';
+                if (!user.kycDetails.bank.verifiedAt) {
+                    user.kycDetails.bank.verifiedAt = new Date();
+                }
+            }
+            if (user.kycDetails.upi && user.kycDetails.upi.status === 'pending') {
+                user.kycDetails.upi.status = 'accepted';
+                if (!user.kycDetails.upi.verifiedAt) {
+                    user.kycDetails.upi.verifiedAt = new Date();
+                }
+            }
+        } else if (kycStatus === 'rejected' && user.kycDetails) {
+            // Mark any pending methods as rejected
+            if (user.kycDetails.bank && user.kycDetails.bank.status === 'pending') {
+                user.kycDetails.bank.status = 'rejected';
+            }
+            if (user.kycDetails.upi && user.kycDetails.upi.status === 'pending') {
+                user.kycDetails.upi.status = 'rejected';
+            }
+            
+            // Check if any other method is still accepted, otherwise set overall to rejected
+            const hasAcceptedMethod = 
+                (user.kycDetails.bank && user.kycDetails.bank.status === 'accepted') ||
+                (user.kycDetails.upi && user.kycDetails.upi.status === 'accepted');
+            
+            if (!hasAcceptedMethod) {
+                user.kycStatus = 'rejected';
+            } else {
+                // If there are still accepted methods, don't set overall to rejected
+                user.kycStatus = 'accepted';
+            }
+        }
+        
+        await user.save();
+
         return res.json({ success: true, data: user });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
@@ -212,7 +320,7 @@ exports.reviewKYC = async (req, res) => {
             const FemaleKYC = require('../../models/femaleUser/KYC');
             kyc = await FemaleKYC.findByIdAndUpdate(kycId, { status, verifiedBy: req.admin?._id || req.staff?._id }, { new: true });
             if (!kyc) return res.status(404).json({ success: false, message: messages.USER_MANAGEMENT.FEMALE_KYC_NOT_FOUND });
-            // Update FemaleUser kycStatus and kycDetails when KYC is approved
+            // Update FemaleUser kycStatus and kycDetails when KYC is approved (status = 'accepted')
             if (status === 'approved') {
                 // Update only the specific method that was approved
                 const user = await FemaleUser.findById(kyc.user);
@@ -228,39 +336,152 @@ exports.reviewKYC = async (req, res) => {
                 const mongoose = require('mongoose');
                 
                 if (kyc.method === 'account_details' && kyc.accountDetails) {
-                    // Update bank details with verified timestamp
+                    // Update bank details with status and verified timestamp
                     user.kycDetails.bank = {
                         _id: user.kycDetails.bank._id || new mongoose.Types.ObjectId(),
                         name: kyc.accountDetails.name,
                         accountNumber: kyc.accountDetails.accountNumber,
                         ifsc: kyc.accountDetails.ifsc,
+                        status: 'accepted',
                         verifiedAt: new Date()
                     };
                 } else if (kyc.method === 'upi_id' && kyc.upiId) {
-                    // Update UPI details with verified timestamp
+                    // Update UPI details with status and verified timestamp
                     user.kycDetails.upi = {
                         _id: user.kycDetails.upi._id || new mongoose.Types.ObjectId(),
                         upiId: kyc.upiId,
+                        status: 'accepted',
                         verifiedAt: new Date()
                     };
                 }
                 
-                // Set overall KYC status to approved
-                user.kycStatus = 'approved';
+                // Set overall KYC status to accepted
+                user.kycStatus = 'accepted';
                 await user.save();
             } else if (status === 'rejected') {
-                await FemaleUser.findByIdAndUpdate(kyc.user, { 
-                    kycStatus: 'rejected',
-                    kycDetails: { verifiedAt: new Date() }
-                });
+                // Update the specific method that was rejected
+                const user = await FemaleUser.findById(kyc.user);
+                
+                // Initialize kycDetails with new structure if it doesn't exist or has old structure
+                if (!user.kycDetails || !user.kycDetails.bank || !user.kycDetails.upi) {
+                    user.kycDetails = {
+                        bank: {},
+                        upi: {}
+                    };
+                }
+                
+                if (kyc.method === 'account_details' && kyc.accountDetails) {
+                    // Update bank details with rejected status
+                    user.kycDetails.bank = {
+                        _id: user.kycDetails.bank._id || new mongoose.Types.ObjectId(),
+                        name: kyc.accountDetails.name,
+                        accountNumber: kyc.accountDetails.accountNumber,
+                        ifsc: kyc.accountDetails.ifsc,
+                        status: 'rejected',
+                        verifiedAt: user.kycDetails.bank.verifiedAt // Keep original verifiedAt if it existed
+                    };
+                } else if (kyc.method === 'upi_id' && kyc.upiId) {
+                    // Update UPI details with rejected status
+                    user.kycDetails.upi = {
+                        _id: user.kycDetails.upi._id || new mongoose.Types.ObjectId(),
+                        upiId: kyc.upiId,
+                        status: 'rejected',
+                        verifiedAt: user.kycDetails.upi.verifiedAt // Keep original verifiedAt if it existed
+                    };
+                }
+                
+                // Check if any other method is still accepted, otherwise set to rejected
+                const hasAcceptedMethod = 
+                    (user.kycDetails.bank && user.kycDetails.bank.status === 'accepted') ||
+                    (user.kycDetails.upi && user.kycDetails.upi.status === 'accepted');
+                
+                if (!hasAcceptedMethod) {
+                    user.kycStatus = 'rejected';
+                }
+                
+                await user.save();
             }
         } else {
             const AgencyKYC = require('../../models/agency/KYC');
             kyc = await AgencyKYC.findByIdAndUpdate(kycId, { status, verifiedBy: req.admin?._id || req.staff?._id }, { new: true });
             if (!kyc) return res.status(404).json({ success: false, message: messages.USER_MANAGEMENT.AGENCY_KYC_NOT_FOUND });
-            // Update AgencyUser kycStatus when KYC is approved
+            // Update AgencyUser kycStatus and kycDetails when KYC is approved (status = 'accepted')
             if (status === 'approved') {
-                await AgencyUser.findByIdAndUpdate(kyc.user, { kycStatus: 'approved' });
+                const user = await AgencyUser.findById(kyc.user);
+                
+                // Initialize kycDetails with new structure if it doesn't exist or has old structure
+                if (!user.kycDetails || !user.kycDetails.bank || !user.kycDetails.upi) {
+                    user.kycDetails = {
+                        bank: {},
+                        upi: {}
+                    };
+                }
+                
+                if (kyc.method === 'account_details' && kyc.accountDetails) {
+                    // Update bank details with status and verified timestamp
+                    user.kycDetails.bank = {
+                        _id: user.kycDetails.bank._id || new mongoose.Types.ObjectId(),
+                        name: kyc.accountDetails.name,
+                        accountNumber: kyc.accountDetails.accountNumber,
+                        ifsc: kyc.accountDetails.ifsc,
+                        status: 'accepted',
+                        verifiedAt: new Date()
+                    };
+                } else if (kyc.method === 'upi_id' && kyc.upiId) {
+                    // Update UPI details with status and verified timestamp
+                    user.kycDetails.upi = {
+                        _id: user.kycDetails.upi._id || new mongoose.Types.ObjectId(),
+                        upiId: kyc.upiId,
+                        status: 'accepted',
+                        verifiedAt: new Date()
+                    };
+                }
+                
+                // Set overall KYC status to accepted
+                user.kycStatus = 'accepted';
+                await user.save();
+            } else if (status === 'rejected') {
+                // Update the specific method that was rejected
+                const user = await AgencyUser.findById(kyc.user);
+                
+                // Initialize kycDetails with new structure if it doesn't exist or has old structure
+                if (!user.kycDetails || !user.kycDetails.bank || !user.kycDetails.upi) {
+                    user.kycDetails = {
+                        bank: {},
+                        upi: {}
+                    };
+                }
+                
+                if (kyc.method === 'account_details' && kyc.accountDetails) {
+                    // Update bank details with rejected status
+                    user.kycDetails.bank = {
+                        _id: user.kycDetails.bank._id || new mongoose.Types.ObjectId(),
+                        name: kyc.accountDetails.name,
+                        accountNumber: kyc.accountDetails.accountNumber,
+                        ifsc: kyc.accountDetails.ifsc,
+                        status: 'rejected',
+                        verifiedAt: user.kycDetails.bank.verifiedAt // Keep original verifiedAt if it existed
+                    };
+                } else if (kyc.method === 'upi_id' && kyc.upiId) {
+                    // Update UPI details with rejected status
+                    user.kycDetails.upi = {
+                        _id: user.kycDetails.upi._id || new mongoose.Types.ObjectId(),
+                        upiId: kyc.upiId,
+                        status: 'rejected',
+                        verifiedAt: user.kycDetails.upi.verifiedAt // Keep original verifiedAt if it existed
+                    };
+                }
+                
+                // Check if any other method is still accepted, otherwise set to rejected
+                const hasAcceptedMethod = 
+                    (user.kycDetails.bank && user.kycDetails.bank.status === 'accepted') ||
+                    (user.kycDetails.upi && user.kycDetails.upi.status === 'accepted');
+                
+                if (!hasAcceptedMethod) {
+                    user.kycStatus = 'rejected';
+                }
+                
+                await user.save();
             }
         }
         

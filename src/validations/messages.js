@@ -55,7 +55,7 @@ module.exports = {
     INVALID_COIN_AMOUNT: "Invalid coin amount",
     INVALID_RUPEE_AMOUNT: "Invalid rupee amount",
     INVALID_PAYOUT_METHOD: "Invalid payout method",
-    KYC_NOT_APPROVED: (userType) => `KYC not approved for ${userType} user`,
+    KYC_NOT_APPROVED: (userType) => `KYC not approved for ${userType} user`, // Note: This message is kept for compatibility but now refers to 'accepted' status
     BANK_DETAILS_NOT_VERIFIED: "Bank details not verified in KYC",
     UPI_DETAILS_NOT_VERIFIED: "UPI details not verified in KYC",
     PAYOUT_DETAILS_REQUIRED: "Payout details required",

@@ -9,11 +9,17 @@ const messages = require('../../validations/messages');
 
 function ensureKycVerified(user, userType) {
   if (userType === 'female') {
-    if (!user || user.kycStatus !== 'approved') {
+    if (!user || 
+        !user.kycDetails || 
+        !((user.kycDetails.bank && user.kycDetails.bank.status === 'accepted') || 
+          (user.kycDetails.upi && user.kycDetails.upi.status === 'accepted'))) {
       return messages.VALIDATION.KYC_NOT_APPROVED('female');
     }
   } else if (userType === 'agency') {
-    if (!user || user.kycStatus !== 'approved') {
+    if (!user || 
+        !user.kycDetails || 
+        !((user.kycDetails.bank && user.kycDetails.bank.status === 'accepted') || 
+          (user.kycDetails.upi && user.kycDetails.upi.status === 'accepted'))) {
       return messages.VALIDATION.KYC_NOT_APPROVED('agency');
     }
   }
@@ -49,7 +55,7 @@ exports.createWithdrawalRequest = async (req, res) => {
     let payoutDetails = null;
     if (userType === 'female') {
       if (payoutMethod === 'bank') {
-        if (!user.kycDetails || !user.kycDetails.bank || !user.kycDetails.bank.verifiedAt) {
+        if (!user.kycDetails || !user.kycDetails.bank || user.kycDetails.bank.status !== 'accepted') {
           return res.status(400).json({ success: false, message: messages.VALIDATION.BANK_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {
@@ -58,7 +64,7 @@ exports.createWithdrawalRequest = async (req, res) => {
           ifsc: user.kycDetails.bank.ifsc
         };
       } else if (payoutMethod === 'upi') {
-        if (!user.kycDetails || !user.kycDetails.upi || !user.kycDetails.upi.verifiedAt) {
+        if (!user.kycDetails || !user.kycDetails.upi || user.kycDetails.upi.status !== 'accepted') {
           return res.status(400).json({ success: false, message: messages.VALIDATION.UPI_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {

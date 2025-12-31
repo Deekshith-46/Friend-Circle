@@ -236,32 +236,68 @@ exports.updateMinWithdrawalAmount = async (req, res) => {
 // Set/Update referral bonus
 exports.setReferralBonus = async (req, res) => {
   try {
-    const { bonus } = req.body; // coins to give
-
-    // Validate input
-    if (bonus === undefined || bonus === null) {
-      return res.status(400).json({ 
-        success: false, 
-        message: messages.ADMIN.BONUS_REQUIRED 
-      });
-    }
-    
-    const numericValue = Number(bonus);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: messages.ADMIN.BONUS_INVALID 
-      });
-    }
+    const { bonus, femaleReferralBonus, agencyReferralBonus, maleReferralBonus } = req.body;
 
     const config = await AdminConfig.getConfig();
-    config.referralBonus = numericValue;
+    
+    // Handle backward compatibility: if 'bonus' is provided, map it to femaleReferralBonus
+    if (bonus !== undefined && bonus !== null) {
+      const numericValue = Number(bonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: messages.ADMIN.BONUS_INVALID 
+        });
+      }
+      config.femaleReferralBonus = numericValue; // Map old bonus to female bonus for backward compatibility
+    }
+    
+    // Update female referral bonus if provided
+    if (femaleReferralBonus !== undefined && femaleReferralBonus !== null) {
+      const numericValue = Number(femaleReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'femaleReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.femaleReferralBonus = numericValue;
+    }
+    
+    // Update agency referral bonus if provided
+    if (agencyReferralBonus !== undefined && agencyReferralBonus !== null) {
+      const numericValue = Number(agencyReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'agencyReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.agencyReferralBonus = numericValue;
+    }
+    
+    // Update male referral bonus if provided
+    if (maleReferralBonus !== undefined && maleReferralBonus !== null) {
+      const numericValue = Number(maleReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'maleReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.maleReferralBonus = numericValue;
+    }
+
     await config.save();
 
     res.json({
       success: true,
       message: messages.ADMIN.BONUS_UPDATED,
-      data: config
+      data: {
+        femaleReferralBonus: config.femaleReferralBonus,
+        agencyReferralBonus: config.agencyReferralBonus,
+        maleReferralBonus: config.maleReferralBonus
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -275,7 +311,9 @@ exports.getReferralBonus = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        referralBonus: config.referralBonus || 100 // Default value if not set
+        femaleReferralBonus: config.femaleReferralBonus,
+        agencyReferralBonus: config.agencyReferralBonus,
+        maleReferralBonus: config.maleReferralBonus
       }
     });
   } catch (err) {
@@ -289,33 +327,67 @@ exports.getReferralBonus = async (req, res) => {
 // Update referral bonus (alternative to POST)
 exports.updateReferralBonus = async (req, res) => {
   try {
-    const { bonus } = req.body;
-
-    // Validate input
-    if (bonus === undefined || bonus === null) {
-      return res.status(400).json({ 
-        success: false, 
-        message: messages.ADMIN.BONUS_REQUIRED 
-      });
-    }
-    
-    const numericValue = Number(bonus);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: messages.ADMIN.BONUS_INVALID 
-      });
-    }
+    const { bonus, femaleReferralBonus, agencyReferralBonus, maleReferralBonus } = req.body;
 
     const config = await AdminConfig.getConfig();
-    config.referralBonus = numericValue;
+    
+    // Handle backward compatibility: if 'bonus' is provided, map it to femaleReferralBonus
+    if (bonus !== undefined && bonus !== null) {
+      const numericValue = Number(bonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: messages.ADMIN.BONUS_INVALID 
+        });
+      }
+      config.femaleReferralBonus = numericValue; // Map old bonus to female bonus for backward compatibility
+    }
+    
+    // Update female referral bonus if provided
+    if (femaleReferralBonus !== undefined && femaleReferralBonus !== null) {
+      const numericValue = Number(femaleReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'femaleReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.femaleReferralBonus = numericValue;
+    }
+    
+    // Update agency referral bonus if provided
+    if (agencyReferralBonus !== undefined && agencyReferralBonus !== null) {
+      const numericValue = Number(agencyReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'agencyReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.agencyReferralBonus = numericValue;
+    }
+    
+    // Update male referral bonus if provided
+    if (maleReferralBonus !== undefined && maleReferralBonus !== null) {
+      const numericValue = Number(maleReferralBonus);
+      if (!Number.isFinite(numericValue) || numericValue < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'maleReferralBonus must be a valid non-negative number' 
+        });
+      }
+      config.maleReferralBonus = numericValue;
+    }
+
     await config.save();
 
     res.json({
       success: true,
       message: messages.ADMIN.BONUS_UPDATED,
       data: {
-        referralBonus: config.referralBonus
+        femaleReferralBonus: config.femaleReferralBonus,
+        agencyReferralBonus: config.agencyReferralBonus,
+        maleReferralBonus: config.maleReferralBonus
       }
     });
   } catch (err) {
@@ -328,7 +400,13 @@ exports.deleteReferralBonus = async (req, res) => {
   try {
     const config = await AdminConfig.getConfig();
     const previousBonus = config.referralBonus;
+    const previousFemaleBonus = config.femaleReferralBonus;
+    const previousAgencyBonus = config.agencyReferralBonus;
+    
     config.referralBonus = 100; // Reset to default value
+    config.femaleReferralBonus = 100; // Reset to default value
+    config.agencyReferralBonus = 0; // Reset to default value
+    
     await config.save();
 
     res.json({
@@ -336,7 +414,11 @@ exports.deleteReferralBonus = async (req, res) => {
       message: messages.ADMIN.BONUS_RESET,
       data: {
         previousBonus: previousBonus,
-        newBonus: config.referralBonus
+        previousFemaleBonus: previousFemaleBonus,
+        previousAgencyBonus: previousAgencyBonus,
+        newBonus: config.referralBonus,
+        newFemaleBonus: config.femaleReferralBonus,
+        newAgencyBonus: config.agencyReferralBonus
       }
     });
   } catch (err) {

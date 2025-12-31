@@ -308,7 +308,7 @@ exports.registerUser = async (req, res) => {
         if (referralCode) {
           const referredByUser = await MaleUser.findOne({ referralCode });
           if (referredByUser) {
-            existingUser.referredBy = referredByUser._id;
+            existingUser.referredBy = [referredByUser._id];
           }
         }
         
@@ -349,7 +349,7 @@ exports.registerUser = async (req, res) => {
       email, 
       password, 
       otp, 
-      referredBy: referredByUser?._id, 
+      referredBy: referredByUser ? [referredByUser._id] : [], 
       referralCode: myReferral,
       isVerified: false,
       isActive: false
@@ -495,48 +495,9 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: messages.COMMON.INVALID_OTP });
     }
     
-    // Get admin config for referral bonus
-    const adminConfig = await AdminConfig.getConfig();
-    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
-    
     user.isVerified = true;
     user.isActive = true;    // Mark the user as active
     user.otp = undefined;  // Clear OTP after verification
-
-    // Award referral bonus once after verification
-    if (!user.referralBonusAwarded && user.referredBy) {
-      const referrer = await MaleUser.findById(user.referredBy);
-      if (referrer) {
-        // Add referral bonus to coinBalance for male users (not walletBalance)
-        referrer.coinBalance = (referrer.coinBalance || 0) + referralBonusAmount;
-        user.coinBalance = (user.coinBalance || 0) + referralBonusAmount;
-        await referrer.save();
-
-        // Record transactions for both
-        await Transaction.create({
-          userType: 'male',
-          userId: referrer._id,
-          operationType: 'coin',
-          action: 'credit',
-          amount: referralBonusAmount,
-          message: `Referral bonus for inviting ${user.email}`,
-          balanceAfter: referrer.coinBalance,
-          createdBy: referrer._id
-        });
-        await Transaction.create({
-          userType: 'male',
-          userId: user._id,
-          operationType: 'coin',
-          action: 'credit',
-          amount: referralBonusAmount,
-          message: `Referral signup bonus using ${referrer.referralCode}`,
-          balanceAfter: user.coinBalance,
-          createdBy: user._id
-        });
-
-        user.referralBonusAwarded = true;
-      }
-    }
 
     await user.save();
 
@@ -657,6 +618,49 @@ exports.listFemaleUsers = async (req, res) => {
     }));
 
     return res.json({ success: true, page, limit, total, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Complete male profile and award referral bonus if applicable
+exports.completeProfile = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const user = await MaleUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+
+    // Check if profile is already completed
+    if (user.profileCompleted) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Profile already completed'
+      });
+    }
+
+    // Update profile completion status
+    user.profileCompleted = true;
+    await user.save();
+    
+    // Process referral bonus if the user was referred
+    if (user.referredBy && user.referredBy.length > 0) {
+      const processReferralBonus = require('../../utils/processReferralBonus');
+      const result = await processReferralBonus(user, 'male');
+      if (result) {
+        console.log(`Referral bonus processed for male user ${user._id} after profile completion`);
+      }
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Profile completed successfully',
+      data: {
+        profileCompleted: true
+      }
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

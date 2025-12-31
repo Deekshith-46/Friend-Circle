@@ -10,6 +10,107 @@ const WithdrawalRequest = require('../../models/common/WithdrawalRequest');
 const { isValidEmail, isValidMobile } = require('../../validations/validations');
 const messages = require('../../validations/messages');
 
+// Helper function to award referral bonuses
+const awardReferralBonus = async (user, adminConfig) => {
+  if (!user || !adminConfig || user.referralBonusAwarded) {
+    return false; // No user, no config, or bonus already awarded
+  }
+  
+  const Transaction = require('../../models/common/Transaction');
+  
+  try {
+    // Determine referral bonus amount based on referral source
+    let referralBonusAmount;
+    let referrer;
+    
+    if (user.referredByFemale) {
+      // Female user referred by another female user
+      referralBonusAmount = adminConfig.femaleReferralBonus || 100;
+      const FemaleModel = require('../../models/femaleUser/FemaleUser');
+      referrer = await FemaleModel.findById(user.referredByFemale);
+      
+      if (referrer) {
+        // Add referral bonus to both referrer and referred user's wallet balance
+        referrer.walletBalance = (referrer.walletBalance || 0) + referralBonusAmount;
+        user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
+        await referrer.save();
+        
+        // Create transaction for referrer
+        await Transaction.create({ 
+          userType: 'female', 
+          userId: referrer._id, 
+          operationType: 'wallet', 
+          action: 'credit', 
+          amount: referralBonusAmount, 
+          message: `Referral bonus for inviting ${user.email}`, 
+          balanceAfter: referrer.walletBalance, 
+          createdBy: referrer._id 
+        });
+        
+        // Create transaction for referred user
+        await Transaction.create({ 
+          userType: 'female', 
+          userId: user._id, 
+          operationType: 'wallet', 
+          action: 'credit', 
+          amount: referralBonusAmount, 
+          message: `Referral signup bonus using referral code`, 
+          balanceAfter: user.walletBalance, 
+          createdBy: user._id 
+        });
+      }
+    } else if (user.referredByAgency) {
+      // Female user referred by an agency
+      referralBonusAmount = adminConfig.agencyReferralBonus || 100;
+      const AgencyModel = require('../../models/agency/AgencyUser');
+      referrer = await AgencyModel.findById(user.referredByAgency);
+      
+      if (referrer) {
+        // Add referral bonus to both agency and referred user's wallet balance
+        referrer.walletBalance = (referrer.walletBalance || 0) + referralBonusAmount;
+        user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
+        await referrer.save();
+        
+        // Create transaction for agency
+        await Transaction.create({ 
+          userType: 'agency', 
+          userId: referrer._id, 
+          operationType: 'wallet', 
+          action: 'credit', 
+          amount: referralBonusAmount, 
+          message: `Agency referral bonus for inviting ${user.email}`, 
+          balanceAfter: referrer.walletBalance, 
+          createdBy: referrer._id 
+        });
+        
+        // Create transaction for referred user
+        await Transaction.create({ 
+          userType: 'female', 
+          userId: user._id, 
+          operationType: 'wallet', 
+          action: 'credit', 
+          amount: referralBonusAmount, 
+          message: `Referral signup bonus via agency`, 
+          balanceAfter: user.walletBalance, 
+          createdBy: user._id 
+        });
+      }
+    } else {
+      // No referral - return early
+      return false;
+    }
+    
+    // Mark referral bonus as awarded
+    user.referralBonusAwarded = true;
+    await user.save();
+    
+    return true; // Successfully awarded referral bonus
+  } catch (error) {
+    console.error('Error awarding referral bonus:', error);
+    return false; // Error occurred
+  }
+};
+
 // Update user interests
 exports.updateInterests = async (req, res) => {
   try {
@@ -334,8 +435,8 @@ exports.registerUser = async (req, res) => {
       mobileNumber, 
       otp, 
       referralCode: myReferral, 
-      referredByFemale: referredByFemale?._id, 
-      referredByAgency: referredByAgency?._id,
+      referredByFemale: referredByFemale ? [referredByFemale._id] : [], 
+      referredByAgency: referredByAgency ? [referredByAgency._id] : [],
       isVerified: false,      // Will be true after OTP verification
       isActive: false,        // Will be true after OTP verification
       profileCompleted: false, // Will be true after profile completion
@@ -625,10 +726,6 @@ exports.completeUserProfile = async (req, res) => {
       user.videoUrl = uploadedVideo.path;
     }
 
-    // Get admin config for referral bonus
-    const adminConfig = await AdminConfig.getConfig();
-    const referralBonusAmount = adminConfig.referralBonus || 100; // Default to 100 coins if not set
-
     // Update user profile
     user.name = name;
     user.age = age;
@@ -714,58 +811,6 @@ exports.completeUserProfile = async (req, res) => {
     // 🔑 KEY STATE CHANGES:
     user.profileCompleted = true;      // Profile is now complete
     user.reviewStatus = 'pending';     // Set to pending for admin review
-
-    // Award referral bonus after profile completion
-    if (!user.referralBonusAwarded && (user.referredByFemale || user.referredByAgency)) {
-      const Transaction = require('../../models/common/Transaction');
-      
-      if (user.referredByFemale) {
-        const FemaleModel = require('../../models/femaleUser/FemaleUser');
-        const referrer = await FemaleModel.findById(user.referredByFemale);
-        if (referrer) {
-          // Add referral bonus to walletBalance
-          referrer.walletBalance = (referrer.walletBalance || 0) + referralBonusAmount;
-          user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
-          await referrer.save();
-          
-          await Transaction.create({ 
-            userType: 'female', 
-            userId: referrer._id, 
-            operationType: 'wallet', 
-            action: 'credit', 
-            amount: referralBonusAmount, 
-            message: `Referral bonus for inviting ${user.email}`, 
-            balanceAfter: referrer.walletBalance, 
-            createdBy: referrer._id 
-          });
-          await Transaction.create({ 
-            userType: 'female', 
-            userId: user._id, 
-            operationType: 'wallet', 
-            action: 'credit', 
-            amount: referralBonusAmount, 
-            message: `Referral signup bonus using referral code`, 
-            balanceAfter: user.walletBalance, 
-            createdBy: user._id 
-          });
-          user.referralBonusAwarded = true;
-        }
-      } else if (user.referredByAgency) {
-        // Add referral bonus to walletBalance
-        user.walletBalance = (user.walletBalance || 0) + referralBonusAmount;
-        await Transaction.create({ 
-          userType: 'female', 
-          userId: user._id, 
-          operationType: 'wallet', 
-          action: 'credit', 
-          amount: referralBonusAmount, 
-          message: `Referral signup bonus via agency`, 
-          balanceAfter: user.walletBalance, 
-          createdBy: user._id 
-        });
-        user.referralBonusAwarded = true;
-      }
-    }
 
     await user.save();
     
@@ -1406,6 +1451,35 @@ exports.cleanupIncompleteProfiles = async (req, res) => {
       success: true, 
       message: `Cleaned up ${result.deletedCount} incomplete profile(s)`,
       deletedCount: result.deletedCount
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update review status and award referral bonus if applicable
+exports.updateReviewStatus = async (req, res) => {
+  try {
+    const { userId, reviewStatus } = req.body;
+    
+    const user = await FemaleUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+    
+    const oldReviewStatus = user.reviewStatus;
+    user.reviewStatus = reviewStatus;
+    await user.save();
+    
+    // Note: Referral bonus is handled only in admin approval, not in user-side review status update
+    
+    return res.json({
+      success: true,
+      message: 'Review status updated successfully',
+      data: {
+        userId: user._id,
+        reviewStatus: user.reviewStatus
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

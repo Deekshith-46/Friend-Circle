@@ -45,18 +45,20 @@ const femaleUserSchema = new mongoose.Schema({
   profileCompleted: { type: Boolean, default: false }, // True only after user completes profile with all details
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleUser' }],
 
-  kycStatus: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+  kycStatus: { type: String, enum: ['completeKyc', 'pending', 'accepted', 'rejected'], default: 'completeKyc' },
   kycDetails: { 
     bank: {
       _id: { type: mongoose.Schema.Types.ObjectId },
       name: String,
       accountNumber: String,
       ifsc: String,
+      status: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
       verifiedAt: Date
     },
     upi: {
       _id: { type: mongoose.Schema.Types.ObjectId },
       upiId: String,
+      status: { type: String, enum: ['pending', 'rejected', 'accepted'], default: 'pending' },
       verifiedAt: Date
     }
   },
@@ -76,9 +78,8 @@ const femaleUserSchema = new mongoose.Schema({
   coinsPerSecond: { type: Number, default: 2 }, // Admin-configurable rate for video/audio calls
   // Referral system
   referralCode: { type: String, unique: true, sparse: true },
-  referredByFemale: { type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' },
-  referredByAgency: { type: mongoose.Schema.Types.ObjectId, ref: 'AgencyUser' },
-  referralBonusAwarded: { type: Boolean, default: false },
+  referredByFemale: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' }],
+  referredByAgency: [{ type: mongoose.Schema.Types.ObjectId, ref: 'AgencyUser' }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('FemaleUser', femaleUserSchema);

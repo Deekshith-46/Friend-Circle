@@ -8,7 +8,7 @@ const { checkAndMarkAgencyProfileCompleted } = require('../../utils/agencyProfil
 
 // Agency Registration (Email and Mobile Number) - ONLY ONCE PER USER
 exports.agencyRegister = async (req, res) => {
-  const { email, mobileNumber } = req.body;
+  const { email, mobileNumber, referralCode } = req.body;
   const otp = Math.floor(1000 + Math.random() * 9000); // Generate 4-digit OTP
 
   try {
@@ -39,11 +39,26 @@ exports.agencyRegister = async (req, res) => {
       });
     }
 
+    // Generate unique referral code for new user
+    const generateReferralCode = require('../../utils/generateReferralCode');
+    let myReferral = generateReferralCode();
+    while (await AgencyUser.findOne({ referralCode: myReferral })) {
+      myReferral = generateReferralCode();
+    }
+
+    // Link referral if provided: can be an AgencyUser code
+    let referredByAgency = null;
+    if (referralCode) {
+      referredByAgency = await AgencyUser.findOne({ referralCode });
+    }
+
     // Create new agency with initial state
     const newAgency = new AgencyUser({ 
       email, 
       mobileNumber, 
       otp, 
+      referralCode: myReferral, 
+      referredByAgency: referredByAgency ? [referredByAgency._id] : [],
       isVerified: false,      // Will be true after OTP verification
       isActive: false,        // Will be true after OTP verification
       profileCompleted: false, // Will be true after profile completion
@@ -383,5 +398,34 @@ exports.agencyMe = async (req, res) => {
     res.json({ success: true, data: agency });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update review status and award referral bonus if applicable
+exports.updateReviewStatus = async (req, res) => {
+  try {
+    const { userId, reviewStatus } = req.body;
+    
+    const agency = await AgencyUser.findById(userId);
+    if (!agency) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+    
+    const oldReviewStatus = agency.reviewStatus;
+    agency.reviewStatus = reviewStatus;
+    await agency.save();
+    
+    // Note: Referral bonus is handled only in admin approval, not in user-side review status update
+    
+    return res.json({
+      success: true,
+      message: 'Review status updated successfully',
+      data: {
+        userId: agency._id,
+        reviewStatus: agency.reviewStatus
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };
