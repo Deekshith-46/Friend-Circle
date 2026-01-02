@@ -1110,7 +1110,16 @@ exports.getBalanceInfo = async (req, res) => {
     
     // Get admin config for conversion rate
     const adminConfig = await AdminConfig.getConfig();
-    const coinToRupeeRate = adminConfig.coinToRupeeConversionRate || 10; // Default 10 coins = 1 Rupee
+    
+    // Validate required financial settings are configured
+    if (adminConfig.coinToRupeeConversionRate === undefined || adminConfig.coinToRupeeConversionRate === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coin to rupee conversion rate not configured by admin'
+      });
+    }
+    
+    const coinToRupeeRate = adminConfig.coinToRupeeConversionRate;
     
     const walletBalance = user.walletBalance || 0;
     const coinBalance = user.coinBalance || 0;
@@ -1533,6 +1542,107 @@ exports.toggleOnlineStatus = async (req, res) => {
       }
     });
   } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update female user profile details (excluding earning rate)
+exports.updateProfileDetails = async (req, res) => {
+  try {
+    const { name, bio, age } = req.body;
+    const userId = req.user._id;
+    
+    // Create update object with only provided fields
+    const updateData = {};
+    
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (bio !== undefined) {
+      updateData.bio = bio;
+    }
+    if (age !== undefined) {
+      updateData.age = age;
+    }
+    
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No fields provided for update"
+      });
+    }
+    
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    ).select('-otp -password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: "Profile details updated successfully",
+      data: user
+    });
+  } catch (err) {
+    console.error('❌ Error in updateProfileDetails:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update female user earning rate (coinsPerMinute) only
+exports.updateEarningRate = async (req, res) => {
+  try {
+    const { coinsPerMinute } = req.body;
+    const userId = req.user._id;
+    
+    // Validate coinsPerMinute is provided
+    if (coinsPerMinute === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "coinsPerMinute is required"
+      });
+    }
+    
+    // Validate coinsPerMinute is a positive number
+    const rate = Number(coinsPerMinute);
+    if (isNaN(rate) || rate < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "coinsPerMinute must be a positive number"
+      });
+    }
+    
+    const updateData = { coinsPerMinute: rate };
+    
+    const user = await FemaleUser.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    ).select('-otp -password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: "Earning rate updated successfully",
+      data: {
+        coinsPerMinute: user.coinsPerMinute
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error in updateEarningRate:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };

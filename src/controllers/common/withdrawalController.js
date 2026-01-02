@@ -5,6 +5,8 @@ const Transaction = require('../../models/common/Transaction');
 const razorpay = require('../../config/razorpay');
 const AdminConfig = require('../../models/admin/AdminConfig');
 const { isValidEmail, isValidMobile } = require('../../validations/validations');
+
+// Get available payout methods for the user
 const messages = require('../../validations/messages');
 
 function ensureKycVerified(user, userType) {
@@ -51,11 +53,21 @@ exports.createWithdrawalRequest = async (req, res) => {
     const kycError = ensureKycVerified(user, userType);
     if (kycError) return res.status(400).json({ success: false, message: kycError });
     
-    // For female users, auto-populate payoutDetails from KYC
+    // For female users, get payout details from KYC based on payoutMethodId
     let payoutDetails = null;
     if (userType === 'female') {
+      // Check if payoutMethodId is provided
+      const payoutMethodId = req.body.payoutMethodId;
+      if (!payoutMethodId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'payoutMethodId is required for female users' 
+        });
+      }
+      
       if (payoutMethod === 'bank') {
-        if (!user.kycDetails || !user.kycDetails.bank || user.kycDetails.bank.status !== 'accepted') {
+        if (!user.kycDetails || !user.kycDetails.bank || user.kycDetails.bank.status !== 'accepted' || 
+            user.kycDetails.bank._id.toString() !== payoutMethodId.toString()) {
           return res.status(400).json({ success: false, message: messages.VALIDATION.BANK_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {
@@ -64,7 +76,8 @@ exports.createWithdrawalRequest = async (req, res) => {
           ifsc: user.kycDetails.bank.ifsc
         };
       } else if (payoutMethod === 'upi') {
-        if (!user.kycDetails || !user.kycDetails.upi || user.kycDetails.upi.status !== 'accepted') {
+        if (!user.kycDetails || !user.kycDetails.upi || user.kycDetails.upi.status !== 'accepted' || 
+            user.kycDetails.upi._id.toString() !== payoutMethodId.toString()) {
           return res.status(400).json({ success: false, message: messages.VALIDATION.UPI_DETAILS_NOT_VERIFIED });
         }
         payoutDetails = {
@@ -72,15 +85,56 @@ exports.createWithdrawalRequest = async (req, res) => {
         };
       }
     } else {
-      // For agency users, still require manual payoutDetails for backward compatibility
-      if (!req.body.payoutDetails) return res.status(400).json({ success: false, message: messages.VALIDATION.PAYOUT_DETAILS_REQUIRED });
-      payoutDetails = req.body.payoutDetails;
+      // For agency users, get payout details from KYC based on payoutMethodId (same as female users)
+      const payoutMethodId = req.body.payoutMethodId;
+      if (!payoutMethodId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'payoutMethodId is required for agency users' 
+        });
+      }
+      
+      if (payoutMethod === 'bank') {
+        if (!user.kycDetails || !user.kycDetails.bank || user.kycDetails.bank.status !== 'accepted' || 
+            user.kycDetails.bank._id.toString() !== payoutMethodId.toString()) {
+          return res.status(400).json({ success: false, message: messages.VALIDATION.BANK_DETAILS_NOT_VERIFIED });
+        }
+        payoutDetails = {
+          accountHolderName: user.kycDetails.bank.name,
+          accountNumber: user.kycDetails.bank.accountNumber,
+          ifsc: user.kycDetails.bank.ifsc
+        };
+      } else if (payoutMethod === 'upi') {
+        if (!user.kycDetails || !user.kycDetails.upi || user.kycDetails.upi.status !== 'accepted' || 
+            user.kycDetails.upi._id.toString() !== payoutMethodId.toString()) {
+          return res.status(400).json({ success: false, message: messages.VALIDATION.UPI_DETAILS_NOT_VERIFIED });
+        }
+        payoutDetails = {
+          vpa: user.kycDetails.upi.upiId
+        };
+      }
     }
     
     // Get admin config for withdrawal settings
     const adminConfig = await AdminConfig.getConfig();
-    const coinToRupeeRate = adminConfig.coinToRupeeConversionRate || 10; // Default 10 coins = 1 Rupee
-    const minWithdrawalAmount = adminConfig.minWithdrawalAmount || 500; // Default 500 Rupees
+    
+    // Validate required financial settings are configured
+    if (adminConfig.coinToRupeeConversionRate === undefined || adminConfig.coinToRupeeConversionRate === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coin to rupee conversion rate not configured by admin'
+      });
+    }
+    
+    if (adminConfig.minWithdrawalAmount === undefined || adminConfig.minWithdrawalAmount === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Minimum withdrawal amount not configured by admin'
+      });
+    }
+    
+    const coinToRupeeRate = adminConfig.coinToRupeeConversionRate;
+    const minWithdrawalAmount = adminConfig.minWithdrawalAmount;
     
     let coinsRequested, amountInRupees;
     
@@ -105,11 +159,11 @@ exports.createWithdrawalRequest = async (req, res) => {
       });
     }
     
-    // For female users, check walletBalance; for agencies, check coinBalance
+    // For female and agency users, check walletBalance; for male users, check coinBalance
     let userBalance;
-    if (userType === 'female') {
+    if (userType === 'female' || userType === 'agency') {
       userBalance = user.walletBalance || 0;
-    } else {
+    } else { // male user
       userBalance = user.coinBalance || 0;
     }
     
@@ -127,9 +181,9 @@ exports.createWithdrawalRequest = async (req, res) => {
     }
     
     // Debit from appropriate balance field
-    if (userType === 'female') {
+    if (userType === 'female' || userType === 'agency') {
       user.walletBalance = (user.walletBalance || 0) - coinsRequested;
-    } else {
+    } else { // male user
       user.coinBalance = (user.coinBalance || 0) - coinsRequested;
     }
     
@@ -139,11 +193,11 @@ exports.createWithdrawalRequest = async (req, res) => {
     await Transaction.create({
       userType,
       userId: user._id,
-      operationType: userType === 'female' ? 'wallet' : 'coin',
+      operationType: (userType === 'female' || userType === 'agency') ? 'wallet' : 'coin',
       action: 'debit',
       amount: coinsRequested,
       message: 'Withdrawal requested - coins debited',
-      balanceAfter: userType === 'female' ? user.walletBalance : user.coinBalance,
+      balanceAfter: (userType === 'female' || userType === 'agency') ? user.walletBalance : user.coinBalance,
       createdBy: user._id
     });
     
@@ -266,9 +320,9 @@ exports.adminRejectWithdrawal = async (req, res) => {
     const user = await userModel.findById(request.userId);
     if (user) {
       // Credit back to appropriate balance field
-      if (request.userType === 'female') {
+      if (request.userType === 'female' || request.userType === 'agency') {
         user.walletBalance = (user.walletBalance || 0) + request.coinsRequested;
-      } else {
+      } else { // male user
         user.coinBalance = (user.coinBalance || 0) + request.coinsRequested;
       }
       
@@ -277,11 +331,11 @@ exports.adminRejectWithdrawal = async (req, res) => {
       await Transaction.create({
         userType: request.userType,
         userId: user._id,
-        operationType: request.userType === 'female' ? 'wallet' : 'coin',
+        operationType: (request.userType === 'female' || request.userType === 'agency') ? 'wallet' : 'coin',
         action: 'credit',
         amount: request.coinsRequested,
         message: 'Withdrawal rejected - coins refunded',
-        balanceAfter: request.userType === 'female' ? user.walletBalance : user.coinBalance,
+        balanceAfter: (request.userType === 'female' || request.userType === 'agency') ? user.walletBalance : user.coinBalance,
         createdBy: req.admin?._id || req.staff?._id
       });
     }
@@ -289,6 +343,155 @@ exports.adminRejectWithdrawal = async (req, res) => {
     return res.json({ success: true, message: messages.WITHDRAWAL.WITHDRAWAL_REJECTED });
   } catch (err) {
     console.error('Error rejecting withdrawal:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get user balance with rupee conversion
+exports.getMyBalance = async (req, res) => {
+  try {
+    // Determine user type based on the route - works for both female and agency
+    const isAgency = req.originalUrl.includes('/agency');
+    const isFemale = req.originalUrl.includes('/female-user');
+    const userType = isAgency ? 'agency' : (isFemale ? 'female' : 'female'); // default to female
+    
+    // Get admin config for conversion rate
+    const adminConfig = await AdminConfig.getConfig();
+    
+    if (adminConfig.coinToRupeeConversionRate === undefined || adminConfig.coinToRupeeConversionRate === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Coin to rupee conversion rate not configured by admin'
+      });
+    }
+    
+    const coinRate = adminConfig.coinToRupeeConversionRate;
+    
+    // Get user to access balance
+    let user;
+    if (userType === 'female') {
+      user = await FemaleUser.findById(req.user.id);
+    } else {
+      user = await AgencyUser.findById(req.user.id);
+    }
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+    
+    // Calculate balances based on user type
+    let walletCoins;
+    
+    if (userType === 'female' || userType === 'agency') {
+      // Female and agency users have walletBalance
+      walletCoins = user.walletBalance || 0;
+    } else {
+      // Male users have coinBalance
+      walletCoins = 0;
+    }
+    
+    // Calculate rupee values
+    const walletRupees = Number((walletCoins / coinRate).toFixed(2));
+    
+    return res.json({
+      success: true,
+      data: {
+        walletBalance: {
+          coins: walletCoins,
+          rupees: walletRupees
+        },
+        conversionRate: {
+          coinsPerRupee: coinRate
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Error getting balance:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// List user transactions
+exports.listMyTransactions = async (req, res) => {
+  try {
+    const userType = req.originalUrl.startsWith('/female-user') ? 'female' : 'agency';
+    const { operationType, startDate, endDate } = req.query;
+    
+    // Build filter
+    let filter = { userId: req.user.id };
+    
+    filter.userType = userType;
+    
+    if (operationType && ['wallet', 'coin'].includes(operationType)) {
+      filter.operationType = operationType;
+    }
+    
+    // Handle date range filtering
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Include the entire end date
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999); // End of the day
+        filter.createdAt.$lte = endDateTime;
+      }
+    }
+    
+    // Get transactions
+    const transactions = await Transaction.find(filter).sort({ createdAt: -1 });
+    
+    return res.json({
+      success: true,
+      data: transactions
+    });
+  } catch (err) {
+    console.error('Error getting transactions:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Get available payout methods for the user
+exports.getAvailablePayoutMethods = async (req, res) => {
+  try {
+    const userType = req.originalUrl.startsWith('/female-user') ? 'female' : 'agency';
+    
+    // Get user to access their KYC details
+    const user = userType === 'female' ? await FemaleUser.findById(req.user.id) : await AgencyUser.findById(req.user.id);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+    
+    const response = {
+      success: true,
+      data: {}
+    };
+    
+    // Check for bank details in KYC
+    if (user.kycDetails && user.kycDetails.bank) {
+      response.data.bank = {
+        id: user.kycDetails.bank._id,
+        accountNumber: user.kycDetails.bank.accountNumber,
+        ifsc: user.kycDetails.bank.ifsc,
+        status: user.kycDetails.bank.status
+      };
+    }
+    
+    // Check for UPI details in KYC
+    if (user.kycDetails && user.kycDetails.upi) {
+      response.data.upi = {
+        id: user.kycDetails.upi._id,
+        upiId: user.kycDetails.upi.upiId,
+        status: user.kycDetails.upi.status
+      };
+    }
+    
+    return res.json(response);
+  } catch (err) {
+    console.error('Error getting payout methods:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 };

@@ -56,25 +56,40 @@ router.post('/verify-otp', maleUserController.verifyOtp);
 router.get('/me', auth, maleUserController.getUserProfile);
 
 // Update user interests
-router.put('/interests', auth, maleUserController.updateInterests);
+router.patch('/interests', auth, parser.none(), maleUserController.updateInterests);
 
 // Update user languages
-router.put('/languages', auth, maleUserController.updateLanguages);
+router.patch('/languages', auth, parser.none(), maleUserController.updateLanguages);
 
 // Update user hobbies
-router.put('/hobbies', auth, maleUserController.updateHobbies);
+router.patch('/hobbies', auth, parser.none(), maleUserController.updateHobbies);
 
 // Update user sports
-router.put('/sports', auth, maleUserController.updateSports);
+router.patch('/sports', auth, parser.none(), maleUserController.updateSports);
 
 // Update user film preferences
-router.put('/film', auth, maleUserController.updateFilm);
+router.patch('/film', auth, parser.none(), maleUserController.updateFilm);
 
 // Update user music preferences
-router.put('/music', auth, maleUserController.updateMusic);
+router.patch('/music', auth, parser.none(), maleUserController.updateMusic);
 
 // Update user travel preferences
-router.put('/travel', auth, maleUserController.updateTravel);
+router.patch('/travel', auth, parser.none(), maleUserController.updateTravel);
+
+// Update basic profile details
+router.patch('/profile-details', auth, parser.none(), maleUserController.updateProfileDetails);
+
+// Update user profile and upload image in single request
+router.post('/profile-and-image', auth, parser.array('images', 5), maleUserController.updateProfileAndImage);
+
+// Delete specific preference item
+router.delete('/preferences/:type/:itemId', auth, maleUserController.deletePreferenceItem);
+
+// Delete specific interest
+router.delete('/interests/:interestId', auth, maleUserController.deleteInterest);
+
+// Delete specific language
+router.delete('/languages/:languageId', auth, maleUserController.deleteLanguage);
 
 // Browse female users (paginated)
 router.get('/browse-females', auth, maleUserController.listFemaleUsers);

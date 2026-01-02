@@ -32,17 +32,57 @@ const callHistorySchema = new mongoose.Schema({
     min: 0 
   }, // Duration in seconds
   
-  // Coin Details
-  coinsPerSecond: { 
+  // Coin Details - Updated for new architecture
+  femaleEarningPerMinute: { 
     type: Number, 
     required: true,
     min: 0 
-  }, // Rate at the time of call
+  }, // Rate that female gets per minute (source of truth)
+  platformMarginPerMinute: { 
+    type: Number, 
+    required: true,
+    min: 0 
+  }, // Platform margin per minute (source of truth)
+  femaleEarningPerSecond: { 
+    type: Number, 
+    required: true,
+    min: 0 
+  }, // Rate that female gets per second (calculated at runtime)
+  platformMarginPerSecond: { 
+    type: Number, 
+    required: true,
+    min: 0 
+  }, // Platform margin per second (calculated at runtime)
   totalCoins: { 
     type: Number, 
     required: true,
     min: 0 
-  }, // Total coins deducted/credited
+  }, // Total coins male paid (female earning + platform margin)
+  femaleEarning: { // Total coins female earned
+    type: Number,
+    required: true,
+    min: 0
+  },
+  platformMargin: { // Total platform margin
+    type: Number,
+    required: true,
+    min: 0
+  },
+  adminEarned: { // Total admin commission from platform margin
+    type: Number,
+    required: true,
+    min: 0
+  },
+  agencyEarned: { // Total agency commission from platform margin
+    type: Number,
+    required: true,
+    min: 0
+  },
+  isAgencyFemale: { // Flag to identify if the female belongs to an agency
+    type: Boolean,
+    required: true,
+    default: false
+  },
   
   // Call Type
   callType: { 

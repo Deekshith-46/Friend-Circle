@@ -1,8 +1,11 @@
+const mongoose = require('mongoose');
 const MaleUser = require('../../models/maleUser/MaleUser');
 const Image = require('../../models/maleUser/Image');
 const FemaleUser = require('../../models/femaleUser/FemaleUser');
 const MaleBlockList = require('../../models/maleUser/BlockList');
 const FemaleBlockList = require('../../models/femaleUser/BlockList');
+const MaleFollowing = require('../../models/maleUser/Following');
+const FemaleFollowing = require('../../models/femaleUser/Following');
 const Package = require('../../models/maleUser/Package');
 const AdminConfig = require('../../models/admin/AdminConfig');
 const generateToken = require('../../utils/generateToken');  // Utility function to generate JWT token
@@ -15,19 +18,70 @@ const messages = require('../../validations/messages');
 // Update user interests
 exports.updateInterests = async (req, res) => {
   try {
-    const { interestIds } = req.body;
+    // Parse interests from either body or form data
+    const interests = parseFormValue(req.body.interests);
     const userId = req.user._id;
 
-    if (!interestIds || !Array.isArray(interestIds)) {
+    if (!interests || !Array.isArray(interests)) {
       return res.status(400).json({
         success: false,
         message: messages.PROFILE.INTEREST_REQUIRED
       });
     }
-
+    
+    // Parse interests in case it comes as string from form-data
+    let parsedInterestIds = interests;
+    if (typeof parsedInterestIds === 'string') {
+      try {
+        parsedInterestIds = JSON.parse(parsedInterestIds);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: messages.PROFILE.INTEREST_REQUIRED
+        });
+      }
+    }
+    
+    if (!parsedInterestIds || !Array.isArray(parsedInterestIds)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.PROFILE.INTEREST_REQUIRED
+      });
+    }
+    
+    // Validate that all IDs are valid ObjectIds
+    const validIds = parsedInterestIds
+      .map(id => mongoose.Types.ObjectId.isValid(id) ? id : null)
+      .filter(Boolean);
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: messages.PROFILE.INTEREST_REQUIRED
+      });
+    }
+    
+    // Validate that these ObjectIds exist in the Interest collection
+    const Interest = require('../../models/admin/Interest');
+    const validInterests = await Interest.find({ _id: { $in: validIds } });
+    const validInterestIds = validInterests.map(i => i._id);
+    
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Combine existing interests with new ones, avoiding duplicates
+    const existingInterestIds = existingUser.interests || [];
+    const allInterestIds = [...new Set([...existingInterestIds, ...validInterestIds])];
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { interests: interestIds },
+      { interests: allInterestIds },
       { new: true }
     ).populate('interests', 'title');
 
@@ -53,19 +107,70 @@ exports.updateInterests = async (req, res) => {
 // Update user languages
 exports.updateLanguages = async (req, res) => {
   try {
-    const { languageIds } = req.body;
+    // Parse languages from either body or form data
+    const languages = parseFormValue(req.body.languages);
     const userId = req.user._id;
 
-    if (!languageIds || !Array.isArray(languageIds)) {
+    if (!languages || !Array.isArray(languages)) {
       return res.status(400).json({
         success: false,
         message: messages.PROFILE.LANGUAGE_REQUIRED
       });
     }
-
+    
+    // Parse languages in case it comes as string from form-data
+    let parsedLanguageIds = languages;
+    if (typeof parsedLanguageIds === 'string') {
+      try {
+        parsedLanguageIds = JSON.parse(parsedLanguageIds);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: messages.PROFILE.LANGUAGE_REQUIRED
+        });
+      }
+    }
+    
+    if (!parsedLanguageIds || !Array.isArray(parsedLanguageIds)) {
+      return res.status(400).json({
+        success: false,
+        message: messages.PROFILE.LANGUAGE_REQUIRED
+      });
+    }
+    
+    // Validate that all IDs are valid ObjectIds
+    const validIds = parsedLanguageIds
+      .map(id => mongoose.Types.ObjectId.isValid(id) ? id : null)
+      .filter(Boolean);
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: messages.PROFILE.LANGUAGE_REQUIRED
+      });
+    }
+    
+    // Validate that these ObjectIds exist in the Language collection
+    const Language = require('../../models/admin/Language');
+    const validLanguages = await Language.find({ _id: { $in: validIds } });
+    const validLanguageIds = validLanguages.map(l => l._id);
+    
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Combine existing languages with new ones, avoiding duplicates
+    const existingLanguageIds = existingUser.languages || [];
+    const allLanguageIds = [...new Set([...existingLanguageIds, ...validLanguageIds])];
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { languages: languageIds },
+      { languages: allLanguageIds },
       { new: true }
     ).populate('languages', 'title');
 
@@ -91,7 +196,8 @@ exports.updateLanguages = async (req, res) => {
 // Update user hobbies
 exports.updateHobbies = async (req, res) => {
   try {
-    const { hobbies } = req.body;
+    // Parse hobbies from either body or form data
+    const hobbies = parseFormValue(req.body.hobbies);
     const userId = req.user._id;
 
     if (!hobbies || !Array.isArray(hobbies)) {
@@ -100,10 +206,41 @@ exports.updateHobbies = async (req, res) => {
         message: messages.PROFILE.HOBBIES_REQUIRED
       });
     }
+    
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Process hobbies to ensure they are in object format with id and name
+    const processedHobbies = hobbies.map(item => {
+      if (typeof item === 'object' && item.id && item.name) {
+        return { id: item.id, name: item.name };
+      } else {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        return { id, name: String(item) };
+      }
+    });
+    
+    // Combine existing hobbies with new ones, avoiding duplicates by name
+    const existingHobbies = existingUser.hobbies || [];
+    const allHobbies = [...existingHobbies];
+    
+    // Add new hobbies that don't already exist
+    for (const newHobby of processedHobbies) {
+      const exists = allHobbies.some(h => h.name === newHobby.name);
+      if (!exists) {
+        allHobbies.push(newHobby);
+      }
+    }
 
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { hobbies: hobbies },
+      { hobbies: allHobbies },
       { new: true }
     );
 
@@ -126,10 +263,78 @@ exports.updateHobbies = async (req, res) => {
   }
 };
 
+// Helper function to parse form-data values (handles JSON strings)
+const parseFormValue = (value) => {
+  if (!value) return value;
+  if (typeof value === 'string') {
+    // Remove surrounding quotes if present (handle multiple levels of quotes)
+    let trimmed = value.trim();
+    
+    // Keep removing outer quotes until no more can be removed
+    let previous;
+    do {
+      previous = trimmed;
+      if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+          (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+        trimmed = trimmed.slice(1, -1);
+      }
+    } while (trimmed !== previous && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+                                    (trimmed.startsWith("'") && trimmed.endsWith("'"))));
+    
+    // Handle special case where string looks like an array literal with objects
+    if (trimmed.startsWith('[') && trimmed.includes('{') && trimmed.includes('}')) {
+      try {
+        // Try to parse as JSON first
+        return JSON.parse(trimmed);
+      } catch (e) {
+        // If JSON parsing fails, try to handle as string representation
+        try {
+          // Handle common form data issues
+          let processed = trimmed
+            .replace(/\n/g, '')
+            .replace(/\t/g, '')
+            .replace(/\r/g, '')
+            .replace(/\'/g, "'");
+          
+          // Try to parse again
+          return JSON.parse(processed);
+        } catch (e2) {
+          console.error('Failed to parse JSON (second attempt):', trimmed, e2);
+          // If it's still failing, try to create proper array from string
+          try {
+            // If it looks like [item1, item2] with strings, try to convert
+            if (trimmed.startsWith('["') && trimmed.endsWith('"]')) {
+              return trimmed.slice(1, -1).split(',').map(item => item.trim().replace(/^["']|["']$/g, ''));
+            }
+          } catch (e3) {
+            console.error('Failed to parse as string array:', e3);
+          }
+          
+          // Return original value if all parsing attempts fail
+          return value;
+        }
+      }
+    }
+    
+    // Try to parse as JSON array/object
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        return JSON.parse(trimmed);
+      } catch (e) {
+        console.error('Failed to parse JSON:', trimmed, e);
+        return value;
+      }
+    }
+    return value;
+  }
+  return value;
+};
+
 // Update user sports
 exports.updateSports = async (req, res) => {
   try {
-    const { sports } = req.body;
+    // Parse sports from either body or form data
+    const sports = parseFormValue(req.body.sports);
     const userId = req.user._id;
 
     if (!sports || !Array.isArray(sports)) {
@@ -139,9 +344,40 @@ exports.updateSports = async (req, res) => {
       });
     }
 
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Process sports to ensure they are in object format with id and name
+    const processedSports = sports.map(item => {
+      if (typeof item === 'object' && item.id && item.name) {
+        return { id: item.id, name: item.name };
+      } else {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        return { id, name: String(item) };
+      }
+    });
+    
+    // Combine existing sports with new ones, avoiding duplicates by name
+    const existingSports = existingUser.sports || [];
+    const allSports = [...existingSports];
+    
+    // Add new sports that don't already exist
+    for (const newSport of processedSports) {
+      const exists = allSports.some(s => s.name === newSport.name);
+      if (!exists) {
+        allSports.push(newSport);
+      }
+    }
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { sports: sports },
+      { sports: allSports },
       { new: true }
     );
 
@@ -167,7 +403,8 @@ exports.updateSports = async (req, res) => {
 // Update user film preferences
 exports.updateFilm = async (req, res) => {
   try {
-    const { film } = req.body;
+    // Parse film from either body or form data
+    const film = parseFormValue(req.body.film);
     const userId = req.user._id;
 
     if (!film || !Array.isArray(film)) {
@@ -177,9 +414,40 @@ exports.updateFilm = async (req, res) => {
       });
     }
 
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Process film to ensure they are in object format with id and name
+    const processedFilm = film.map(item => {
+      if (typeof item === 'object' && item.id && item.name) {
+        return { id: item.id, name: item.name };
+      } else {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        return { id, name: String(item) };
+      }
+    });
+    
+    // Combine existing film preferences with new ones, avoiding duplicates by name
+    const existingFilm = existingUser.film || [];
+    const allFilm = [...existingFilm];
+    
+    // Add new film preferences that don't already exist
+    for (const newFilm of processedFilm) {
+      const exists = allFilm.some(f => f.name === newFilm.name);
+      if (!exists) {
+        allFilm.push(newFilm);
+      }
+    }
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { film: film },
+      { film: allFilm },
       { new: true }
     );
 
@@ -205,7 +473,8 @@ exports.updateFilm = async (req, res) => {
 // Update user music preferences
 exports.updateMusic = async (req, res) => {
   try {
-    const { music } = req.body;
+    // Parse music from either body or form data
+    const music = parseFormValue(req.body.music);
     const userId = req.user._id;
 
     if (!music || !Array.isArray(music)) {
@@ -215,9 +484,40 @@ exports.updateMusic = async (req, res) => {
       });
     }
 
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Process music to ensure they are in object format with id and name
+    const processedMusic = music.map(item => {
+      if (typeof item === 'object' && item.id && item.name) {
+        return { id: item.id, name: item.name };
+      } else {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        return { id, name: String(item) };
+      }
+    });
+    
+    // Combine existing music preferences with new ones, avoiding duplicates by name
+    const existingMusic = existingUser.music || [];
+    const allMusic = [...existingMusic];
+    
+    // Add new music preferences that don't already exist
+    for (const newMusic of processedMusic) {
+      const exists = allMusic.some(m => m.name === newMusic.name);
+      if (!exists) {
+        allMusic.push(newMusic);
+      }
+    }
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { music: music },
+      { music: allMusic },
       { new: true }
     );
 
@@ -243,7 +543,8 @@ exports.updateMusic = async (req, res) => {
 // Update user travel preferences
 exports.updateTravel = async (req, res) => {
   try {
-    const { travel } = req.body;
+    // Parse travel from either body or form data
+    const travel = parseFormValue(req.body.travel);
     const userId = req.user._id;
 
     if (!travel || !Array.isArray(travel)) {
@@ -253,9 +554,40 @@ exports.updateTravel = async (req, res) => {
       });
     }
 
+    // Get the existing user to preserve other data
+    const existingUser = await MaleUser.findById(userId);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    // Process travel to ensure they are in object format with id and name
+    const processedTravel = travel.map(item => {
+      if (typeof item === 'object' && item.id && item.name) {
+        return { id: item.id, name: item.name };
+      } else {
+        const id = require('crypto').randomBytes(8).toString('hex');
+        return { id, name: String(item) };
+      }
+    });
+    
+    // Combine existing travel preferences with new ones, avoiding duplicates by name
+    const existingTravel = existingUser.travel || [];
+    const allTravel = [...existingTravel];
+    
+    // Add new travel preferences that don't already exist
+    for (const newTravel of processedTravel) {
+      const exists = allTravel.some(t => t.name === newTravel.name);
+      if (!exists) {
+        allTravel.push(newTravel);
+      }
+    }
+    
     const user = await MaleUser.findByIdAndUpdate(
       userId,
-      { travel: travel },
+      { travel: allTravel },
       { new: true }
     );
 
@@ -528,15 +860,18 @@ exports.uploadImage = async (req, res) => {
 
     const uploadedUrls = req.files.map((f) => f.path);
 
-    // Save each image in Image collection
+    // Save each image in Image collection and keep track of them
+    const savedImages = [];
     for (const url of uploadedUrls) {
       const newImage = new Image({ maleUserId: req.user.id, imageUrl: url });
-      await newImage.save();
+      const savedImage = await newImage.save();
+      savedImages.push(savedImage);
     }
-
-    // Also persist to MaleUser.images array
+    
+    // Also persist to MaleUser.images array as references to Image documents
     const user = await MaleUser.findById(req.user.id);
-    user.images = Array.isArray(user.images) ? [...user.images, ...uploadedUrls] : uploadedUrls;
+    const newImageIds = savedImages.map(img => img._id);
+    user.images = Array.isArray(user.images) ? [...user.images, ...newImageIds] : newImageIds;
     await user.save();
 
     res.json({ success: true, message: messages.IMAGE.IMAGE_UPLOAD_SUCCESS, urls: uploadedUrls });
@@ -565,7 +900,13 @@ exports.getUserProfile = async (req, res) => {
     const user = await MaleUser.findById(req.user.id)
       .select('-otp -password')
       .populate('interests', 'title')
-      .populate('languages', 'title');
+      .populate('languages', 'title')
+      .populate('relationshipGoals', 'title')
+      .populate('religion', 'title')
+      .populate({
+        path: 'images',
+        select: 'imageUrl createdAt updatedAt'
+      });
       
     if (!user) {
       return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
@@ -599,23 +940,101 @@ exports.listFemaleUsers = async (req, res) => {
       }
     };
 
+    // Get female users
     const [items, total] = await Promise.all([
       FemaleUser.find(filter)
-        .select('name age bio images')
-        .populate({ path: 'images', select: 'imageUrl', options: { limit: 1 } })
+        .select('_id name age gender bio images onlineStatus hideAge')
+        .populate({ path: 'images', select: 'imageUrl' })
         .skip(skip)
         .limit(limit)
         .lean(),
       FemaleUser.countDocuments(filter)
     ]);
 
-    const data = items.map((u) => ({
-      _id: u._id,
-      name: u.name,
-      age: u.age,
-      bio: u.bio,
-      avatarUrl: Array.isArray(u.images) && u.images[0] ? u.images[0].imageUrl : null
-    }));
+    // Define field maps for visibility rules
+    const FEMALE_PUBLIC_FIELDS = [
+      '_id',
+      'name',
+      'age',
+      'gender',
+      'bio',
+      'images',
+      'onlineStatus'
+    ];
+
+    const FEMALE_MUTUAL_FIELDS = [
+      '_id',
+      'name',
+      'age',
+      'gender',
+      'bio',
+      'email',
+      'images',
+      'interests',
+      'languages',
+      'hobbies',
+      'sports',
+      'music',
+      'travel',
+      'film',
+      'onlineStatus'
+    ];
+
+    // Check for mutual follow relationships
+    const maleUserId = req.user._id;
+    const maleFollowing = await MaleFollowing.find({ maleUserId }).select('femaleUserId');
+    const maleFollowingIds = new Set(maleFollowing.map(f => f.femaleUserId.toString()));
+    
+    const femaleFollowing = await FemaleFollowing.find({ femaleUserId: { $in: items.map(item => item._id) }, maleUserId });
+    const femaleFollowingMap = new Map(femaleFollowing.map(f => [f.maleUserId.toString(), f.femaleUserId.toString()]));
+
+    // Process each female user with appropriate visibility
+    const data = items.map((u) => {
+      // Check if mutual follow exists
+      const isMutual = maleFollowingIds.has(u._id.toString()) && 
+                    femaleFollowingMap.has(maleUserId.toString()) &&
+                    femaleFollowingMap.get(maleUserId.toString()) === u._id.toString();
+
+      // Determine allowed fields based on mutual follow status
+      const allowedFields = isMutual ? FEMALE_MUTUAL_FIELDS : FEMALE_PUBLIC_FIELDS;
+      
+      const response = {};
+      
+      // Apply field filtering
+      allowedFields.forEach(field => {
+        if (u[field] !== undefined) {
+          // Handle age visibility based on hideAge setting
+          if (field === 'age' && u.hideAge && !isMutual) {
+            // Don't include age if hideAge is true and not mutual
+            return;
+          }
+          
+          // Handle images - only first image before mutual follow
+          if (field === 'images') {
+            if (isMutual) {
+              response[field] = u[field];
+            } else {
+              // Before mutual follow, only show first image
+              response[field] = Array.isArray(u[field]) && u[field].length > 0 ? [u[field][0]] : [];
+            }
+          } else {
+            response[field] = u[field];
+          }
+        }
+      });
+      
+      // If not mutual and age is hidden, remove it from response
+      if (!isMutual && u.hideAge) {
+        delete response.age;
+      }
+      
+      // Add email only after mutual follow
+      if (isMutual && u.email) {
+        response.email = u.email;
+      }
+      
+      return response;
+    });
 
     return res.json({ success: true, page, limit, total, data });
   } catch (err) {
@@ -679,11 +1098,11 @@ exports.deleteImage = async (req, res) => {
     }
     await Image.deleteOne({ _id: imageDoc._id });
 
-    // Remove url from MaleUser.images array if it exists there
+    // Remove image ObjectId from MaleUser.images array if it exists there
     try {
       const user = await MaleUser.findById(req.user.id);
       if (Array.isArray(user.images)) {
-        user.images = user.images.filter((url) => url !== imageDoc.imageUrl);
+        user.images = user.images.filter((imageId) => String(imageId) !== String(imageDoc._id));
         await user.save();
       }
     } catch (_) {}
@@ -691,5 +1110,530 @@ exports.deleteImage = async (req, res) => {
     return res.json({ success: true, message: messages.IMAGE.IMAGE_DELETED });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update user profile and upload image in a single formData request
+exports.updateProfileAndImage = async (req, res) => {
+  try {
+    const user = await MaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
+    }
+
+    // Helper to convert values to ObjectId array
+    const toObjectIdArray = (arr) => {
+      if (!Array.isArray(arr)) return [];
+      
+      return arr
+        .map(id => mongoose.Types.ObjectId.isValid(id) ? id : null)
+        .filter(Boolean);
+    };
+    
+    // Helper function to parse form-data values (handles JSON strings)
+    const parseFormValue = (value) => {
+      if (!value) return value;
+      if (typeof value === 'string') {
+        // Remove surrounding quotes if present (handle multiple levels of quotes)
+        let trimmed = value.trim();
+        
+        // Keep removing outer quotes until no more can be removed
+        let previous;
+        do {
+          previous = trimmed;
+          if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+              (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+            trimmed = trimmed.slice(1, -1);
+          }
+        } while (trimmed !== previous && ((trimmed.startsWith('"') && trimmed.endsWith('"')) || 
+                                        (trimmed.startsWith("'") && trimmed.endsWith("'"))));
+        
+        // Additional cleanup: remove any remaining escaped quotes
+        trimmed = trimmed.replace(/\"/g, '"');
+        
+        // Handle special case where string looks like an array literal with objects
+        // This happens when form-data sends string representations of arrays
+        if (trimmed.startsWith('[') && trimmed.includes('{') && trimmed.includes('}')) {
+          try {
+            // Try to parse as JSON first
+            return JSON.parse(trimmed);
+          } catch (e) {
+            // If JSON parsing fails, try to handle as string representation
+            try {
+              // Handle common form data issues
+              let processed = trimmed
+                .replace(/\n/g, '')
+                .replace(/\t/g, '')
+                .replace(/\r/g, '')
+                .replace(/\'/g, "'");
+              
+              // Try to parse again
+              return JSON.parse(processed);
+            } catch (e2) {
+              console.error('Failed to parse JSON (second attempt):', trimmed, e2);
+              // If it's still failing, try to create proper array from string
+              try {
+                // If it looks like [item1, item2] with strings, try to convert
+                if (trimmed.startsWith('["') && trimmed.endsWith('"]')) {
+                  return trimmed.slice(1, -1).split(',').map(item => item.trim().replace(/^["']|["']$/g, ''));
+                }
+              } catch (e3) {
+                console.error('Failed to parse as string array:', e3);
+              }
+              
+              // Return original value if all parsing attempts fail
+              return value;
+            }
+          }
+        }
+        
+        // Try to parse as JSON array/object
+        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+          try {
+            return JSON.parse(trimmed);
+          } catch (e) {
+            console.error('Failed to parse JSON:', trimmed, e);
+            return value;
+          }
+        }
+        return value;
+      }
+      return value;
+    };
+
+    // Parse all incoming values
+    const firstName = parseFormValue(req.body.firstName);
+    const lastName = parseFormValue(req.body.lastName);
+    const mobileNumber = parseFormValue(req.body.mobileNumber);
+    const dateOfBirth = parseFormValue(req.body.dateOfBirth);
+    const gender = parseFormValue(req.body.gender);
+    const bio = parseFormValue(req.body.bio);
+    const interests = parseFormValue(req.body.interests);
+    const languages = parseFormValue(req.body.languages);
+    const religion = parseFormValue(req.body.religion);
+    const relationshipGoals = parseFormValue(req.body.relationshipGoals);
+    const height = parseFormValue(req.body.height);
+    const searchPreferences = parseFormValue(req.body.searchPreferences);
+    const hobbies = parseFormValue(req.body.hobbies);
+    const sports = parseFormValue(req.body.sports);
+    const film = parseFormValue(req.body.film);
+    const music = parseFormValue(req.body.music);
+    const travel = parseFormValue(req.body.travel);
+
+    // Update basic fields
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
+    if (mobileNumber) user.mobileNumber = mobileNumber;
+    if (dateOfBirth) {
+      // Handle date string properly to avoid timezone conversion
+      if (typeof dateOfBirth === 'string') {
+        // Parse date string in a way that preserves the date without timezone shift
+        const dateParts = dateOfBirth.split('-');
+        if (dateParts.length === 3) {
+          const year = parseInt(dateParts[0]);
+          const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+          const day = parseInt(dateParts[2]);
+          // Create date object at noon UTC to avoid timezone issues
+          user.dateOfBirth = new Date(Date.UTC(year, month, day));
+        } else {
+          user.dateOfBirth = new Date(dateOfBirth);
+        }
+      } else {
+        user.dateOfBirth = dateOfBirth;
+      }
+    }
+    if (gender) user.gender = gender;
+    if (bio) user.bio = bio;
+    if (height) user.height = height;
+    if (searchPreferences) user.searchPreferences = searchPreferences;
+    
+    // Update interests if provided and validate
+    if (req.body.interests !== undefined) {
+      let interestArray = parseFormValue(req.body.interests);
+
+      if (!Array.isArray(interestArray)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid interests format"
+        });
+      }
+
+      const validIds = interestArray.filter(id =>
+        mongoose.Types.ObjectId.isValid(id)
+      );
+
+      if (validIds.length > 0) {
+        const Interest = require('../../models/admin/Interest');
+        const validInterests = await Interest.find({ _id: { $in: validIds } });
+
+        user.interests = validInterests.map(i => i._id);
+      }
+      // ❌ DO NOT clear interests if empty
+    }
+    
+    // Update languages if provided and validate
+    if (req.body.languages !== undefined) {
+      let languageArray = parseFormValue(req.body.languages);
+
+      if (!Array.isArray(languageArray)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid languages format"
+        });
+      }
+
+      const validIds = languageArray.filter(id =>
+        mongoose.Types.ObjectId.isValid(id)
+      );
+
+      if (validIds.length > 0) {
+        const Language = require('../../models/admin/Language');
+        const validLanguages = await Language.find({ _id: { $in: validIds } });
+
+        user.languages = validLanguages.map(l => l._id);
+      }
+      // ❌ DO NOT clear languages if empty
+    }
+    
+    // Update religion if provided and validate
+    if (religion) {
+      user.religion = religion;
+    }
+    
+    // Update relationship goals if provided and validate
+    if (relationshipGoals) {
+      const RelationGoal = require('../../models/admin/RelationGoal');
+      const goalArray = Array.isArray(relationshipGoals) ? relationshipGoals : [relationshipGoals];
+      const validGoals = await RelationGoal.find({ _id: { $in: goalArray } });
+      user.relationshipGoals = validGoals.map(g => g._id);
+    }
+    
+    // Helper to process preference arrays
+    const processPreferenceArray = (items, fieldName) => {
+      if (!items || !Array.isArray(items) || items.length === 0) return null;
+      
+      console.log(`Processing ${fieldName}:`, items);
+      
+      try {
+        const processed = items.map((item, index) => {
+          console.log(`  Item ${index}:`, item, 'Type:', typeof item);
+          
+          if (!item) {
+            console.log(`  Skipping null/undefined item at index ${index}`);
+            return null;
+          }
+          
+          if (typeof item === 'object' && item !== null) {
+            // If it's already an object with id and name, return as is
+            if (item.id && item.name) {
+              return { id: item.id, name: item.name };
+            }
+            // If it's an object with name property but no id, generate an id
+            else if (item.name) {
+              const id = require('crypto').randomBytes(8).toString('hex');
+              return { id, name: item.name };
+            }
+            // If it's a complex object, try to get the name property
+            else {
+              const name = Object.values(item)[0]; // Get first value as name
+              const id = require('crypto').randomBytes(8).toString('hex');
+              return { id, name: String(name) };
+            }
+          }
+          
+          // Handle string - convert to object with generated id
+          const id = require('crypto').randomBytes(8).toString('hex');
+          return { id, name: String(item) };
+        }).filter(Boolean);
+        
+        console.log(`  Processed ${fieldName}:`, processed);
+        return processed;
+      } catch (err) {
+        console.error(`Error processing ${fieldName}:`, err);
+        throw err;
+      }
+    };
+    
+    // Update preferences - APPEND new items to existing arrays
+    if (hobbies) {
+      const newHobbies = processPreferenceArray(hobbies, 'hobbies');
+      if (newHobbies && newHobbies.length > 0) {
+        const existingIds = (user.hobbies || []).map(h => h.id);
+        const uniqueNew = newHobbies.filter(h => !existingIds.includes(h.id));
+        user.hobbies = [...(user.hobbies || []), ...uniqueNew];
+      }
+    }
+    
+    if (sports) {
+      const newSports = processPreferenceArray(sports, 'sports');
+      if (newSports && newSports.length > 0) {
+        const existingIds = (user.sports || []).map(s => s.id);
+        const uniqueNew = newSports.filter(s => !existingIds.includes(s.id));
+        user.sports = [...(user.sports || []), ...uniqueNew];
+      }
+    }
+    
+    if (film) {
+      const newFilm = processPreferenceArray(film, 'film');
+      if (newFilm && newFilm.length > 0) {
+        const existingIds = (user.film || []).map(f => f.id);
+        const uniqueNew = newFilm.filter(f => !existingIds.includes(f.id));
+        user.film = [...(user.film || []), ...uniqueNew];
+      }
+    }
+    
+    if (music) {
+      const newMusic = processPreferenceArray(music, 'music');
+      if (newMusic && newMusic.length > 0) {
+        const existingIds = (user.music || []).map(m => m.id);
+        const uniqueNew = newMusic.filter(m => !existingIds.includes(m.id));
+        user.music = [...(user.music || []), ...uniqueNew];
+      }
+    }
+    
+    if (travel) {
+      const newTravel = processPreferenceArray(travel, 'travel');
+      if (newTravel && newTravel.length > 0) {
+        const existingIds = (user.travel || []).map(t => t.id);
+        const uniqueNew = newTravel.filter(t => !existingIds.includes(t.id));
+        user.travel = [...(user.travel || []), ...uniqueNew];
+      }
+    }
+    
+    // Handle image upload if files are provided
+    if (req.files && req.files.length > 0) {
+      const uploadedUrls = req.files.map((f) => f.path);
+
+      // Save each image in Image collection and get the saved documents
+      const savedImages = [];
+      for (const url of uploadedUrls) {
+        const newImage = new Image({ maleUserId: req.user.id, imageUrl: url });
+        const savedImage = await newImage.save();
+        savedImages.push(savedImage);
+      }
+
+      // Update the user's images array to reference the Image documents
+      // We'll update this to use the IDs from the Image collection
+      const newImageIds = savedImages.map(img => img._id);
+      user.images = Array.isArray(user.images) ? [...user.images, ...newImageIds] : newImageIds;
+    }
+    
+    await user.save();
+    
+    // Return updated user with populated fields
+    const updatedUser = await MaleUser.findById(user._id)
+      .populate('interests', 'title')
+      .populate('languages', 'title')
+      .populate('relationshipGoals', 'title')
+      .populate({
+        path: 'images',
+        select: 'imageUrl createdAt updatedAt'
+      });
+    
+    res.json({ 
+      success: true, 
+      message: 'Profile updated successfully',
+      data: updatedUser 
+    });
+  } catch (err) {
+    console.error('❌ Error in updateProfileAndImage:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete a specific preference item
+exports.deletePreferenceItem = async (req, res) => {
+  try {
+    const { type, itemId } = req.params; // type: hobbies|sports|film|music|travel
+    
+    const validTypes = ['hobbies', 'sports', 'film', 'music', 'travel'];
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid type. Must be one of: ${validTypes.join(', ')}` 
+      });
+    }
+    
+    const user = await MaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
+    }
+    
+    // Remove item by finding the object with matching _id field
+    const originalLength = (user[type] || []).length;
+    user[type] = (user[type] || []).filter(item => String(item._id) !== String(itemId));
+    
+    if (user[type].length === originalLength) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Item with id ${itemId} not found in ${type}` 
+      });
+    }
+    
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: `${type} item deleted successfully`,
+      data: {
+        type,
+        deletedItemValue: itemId,
+        remainingCount: user[type].length
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error in deletePreferenceItem:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Update basic profile details
+exports.updateProfileDetails = async (req, res) => {
+  try {
+    const { firstName, lastName, searchPreferences, bio, dateOfBirth, height, religion } = req.body;
+    const userId = req.user._id;
+    
+    // Create update object with only provided fields
+    const updateData = {};
+    
+    if (firstName !== undefined) {
+      updateData.firstName = firstName;
+    }
+    if (lastName !== undefined) {
+      updateData.lastName = lastName;
+    }
+    if (searchPreferences !== undefined) {
+      updateData.searchPreferences = searchPreferences;
+    }
+    if (bio !== undefined) {
+      updateData.bio = bio;
+    }
+    if (dateOfBirth !== undefined) {
+      // Parse date to handle timezone properly
+      const parsedDate = new Date(dateOfBirth);
+      updateData.dateOfBirth = parsedDate;
+    }
+    if (height !== undefined) {
+      updateData.height = height;
+    }
+    if (religion !== undefined) {
+      // Validate if religion is a valid ObjectId
+      if (mongoose.Types.ObjectId.isValid(religion)) {
+        updateData.religion = religion;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid religion ID provided"
+        });
+      }
+    }
+    
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No fields provided for update"
+      });
+    }
+    
+    const user = await MaleUser.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    ).select('-otp -password');
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: messages.COMMON.USER_NOT_FOUND
+      });
+    }
+    
+    return res.json({
+      success: true,
+      message: "Profile details updated successfully",
+      data: user
+    });
+  } catch (err) {
+    console.error('❌ Error in updateProfileDetails:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete a specific interest
+exports.deleteInterest = async (req, res) => {
+  try {
+    const { interestId } = req.params;
+    const user = await MaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
+    }
+    
+    // Remove interest by ObjectId
+    const originalLength = (user.interests || []).length;
+    user.interests = (user.interests || []).filter(interest => String(interest) !== String(interestId));
+    
+    if (user.interests.length === originalLength) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Interest with id ${interestId} not found` 
+      });
+    }
+    
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: 'Interest removed successfully',
+      data: {
+        removedInterestId: interestId
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error in deleteInterest:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Delete a specific language
+exports.deleteLanguage = async (req, res) => {
+  try {
+    const { languageId } = req.params;
+    const user = await MaleUser.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: messages.COMMON.USER_NOT_FOUND 
+      });
+    }
+    
+    // Remove language by ObjectId
+    const originalLength = (user.languages || []).length;
+    user.languages = (user.languages || []).filter(language => String(language) !== String(languageId));
+    
+    if (user.languages.length === originalLength) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `Language with id ${languageId} not found` 
+      });
+    }
+    
+    await user.save();
+    
+    return res.json({ 
+      success: true, 
+      message: 'Language removed successfully',
+      data: {
+        removedLanguageId: languageId
+      }
+    });
+  } catch (err) {
+    console.error('❌ Error in deleteLanguage:', err);
+    res.status(500).json({ success: false, error: err.message });
   }
 };

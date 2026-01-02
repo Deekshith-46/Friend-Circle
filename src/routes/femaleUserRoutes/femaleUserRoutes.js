@@ -69,8 +69,8 @@ router.post('/complete-profile',
 // Get Female User Profile
 router.get('/me', auth, femaleUserController.getUserProfile);
 
-// Get balance information (wallet and coin balances)
-router.get('/me/balance', auth, requireReviewAccepted, femaleUserController.getBalanceInfo);
+// Balance Routes
+router.use('/me/balance', require('./balanceRoutes'));
 
 // Get withdrawal history
 router.get('/me/withdrawals', auth, requireReviewAccepted, femaleUserController.getWithdrawalHistory);
@@ -106,6 +106,12 @@ router.get('/me/transactions', auth, requireReviewAccepted, async (req, res) => 
 const multer = require('multer');
 const upload = multer();
 router.patch('/update-profile', auth, requireReviewAccepted, upload.none(), femaleUserController.updateUserInfo);
+
+// Update profile details (name, age, bio) - PATCH for partial updates
+router.patch('/profile-details', auth, requireReviewAccepted, upload.none(), femaleUserController.updateProfileDetails);
+
+// Update earning rate (coinsPerMinute) only - PATCH for rate updates
+router.patch('/earning-rate', auth, requireReviewAccepted, upload.none(), femaleUserController.updateEarningRate);
 
 // Add more images (max 5 total)
 router.post('/add-images', auth, requireReviewAccepted, parser.array('images', 5), femaleUserController.uploadImage);

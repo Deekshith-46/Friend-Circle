@@ -49,7 +49,7 @@ exports.getCallEarningsStats = async (req, res) => {
           _id: null,
           totalCalls: { $sum: 1 },
           totalDuration: { $sum: '$duration' },
-          totalEarnings: { $sum: '$totalCoins' }
+          totalEarnings: { $sum: '$femaleEarning' }
         }
       }
     ]);

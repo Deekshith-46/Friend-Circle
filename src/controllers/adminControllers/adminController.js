@@ -425,3 +425,133 @@ exports.deleteReferralBonus = async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 };
+
+// Update call margin settings for agency females
+exports.updateMarginAgency = async (req, res) => {
+  try {
+    const { marginAgencyPerMinute } = req.body;
+    
+    // Validate input
+    if (marginAgencyPerMinute === undefined || marginAgencyPerMinute === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'marginAgencyPerMinute is required' 
+      });
+    }
+    
+    const numericValue = Number(marginAgencyPerMinute);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'marginAgency must be a valid non-negative number' 
+      });
+    }
+    
+    // Get or create config and update marginAgencyPerMinute
+    let config = await AdminConfig.getConfig();
+    config.marginAgencyPerMinute = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Agency female call margin updated successfully',
+      data: {
+        marginAgencyPerMinute: config.marginAgencyPerMinute
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+// Update call margin settings for non-agency females
+exports.updateMarginNonAgency = async (req, res) => {
+  try {
+    const { marginNonAgencyPerMinute } = req.body;
+    
+    // Validate input
+    if (marginNonAgencyPerMinute === undefined || marginNonAgencyPerMinute === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'marginNonAgencyPerMinute is required' 
+      });
+    }
+    
+    const numericValue = Number(marginNonAgencyPerMinute);
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'marginNonAgency must be a valid non-negative number' 
+      });
+    }
+    
+    // Get or create config and update marginNonAgencyPerMinute
+    let config = await AdminConfig.getConfig();
+    config.marginNonAgencyPerMinute = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Non-agency female call margin updated successfully',
+      data: {
+        marginNonAgencyPerMinute: config.marginNonAgencyPerMinute
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+// Update admin share percentage from platform margin
+exports.updateAdminSharePercentage = async (req, res) => {
+  try {
+    const { adminSharePercentage } = req.body;
+    
+    // Validate input
+    if (adminSharePercentage === undefined || adminSharePercentage === null) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'adminSharePercentage is required' 
+      });
+    }
+    
+    const numericValue = Number(adminSharePercentage);
+    if (!Number.isFinite(numericValue) || numericValue < 0 || numericValue > 100) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'adminSharePercentage must be a valid number between 0 and 100' 
+      });
+    }
+    
+    if (numericValue < 10) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'adminSharePercentage must be at least 10% to ensure platform revenue' 
+      });
+    }
+    
+    // Get or create config and update adminSharePercentage
+    let config = await AdminConfig.getConfig();
+    config.adminSharePercentage = numericValue;
+    await config.save();
+    
+    return res.json({
+      success: true,
+      message: 'Admin share percentage updated successfully',
+      data: {
+        adminSharePercentage: config.adminSharePercentage
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};

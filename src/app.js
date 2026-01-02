@@ -69,7 +69,6 @@ app.use('/male-user/gifts', require('./routes/maleUserRoutes/giftRoutes')); // G
 
 // Routes for Agency User
 app.use('/agency', require('./routes/agencyRoutes/agencyUserRoutes'));
-app.use('/agency/withdrawals', require('./routes/agencyRoutes/withdrawalRoutes'));
 
 // Error middleware
 app.use(require('./middlewares/errorMiddleware'));

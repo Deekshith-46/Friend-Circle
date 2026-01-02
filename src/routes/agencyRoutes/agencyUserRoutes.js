@@ -24,6 +24,18 @@ router.put('/profile', auth, parser.single('image'), agencyUserController.update
 // KYC Routes
 router.use('/kyc', require('./kycRoutes'));
 
+// Balance Routes
+router.use('/me/balance', require('./balanceRoutes'));
+
+// Earnings Routes
+router.use('/earnings', require('./earningsRoutes'));
+
+// Transaction Routes
+router.use('/me/transactions', require('./transactionRoutes'));
+
+// Withdrawal Routes
+router.use('/withdrawals', require('./withdrawalRoutes'));
+
 module.exports = router;
 
 

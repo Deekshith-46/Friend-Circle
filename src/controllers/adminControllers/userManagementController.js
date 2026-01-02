@@ -151,13 +151,21 @@ exports.toggleStatus = async (req, res) => {
 exports.operateBalance = async (req, res) => {
     try {
         const { userType, userId, operationType, action, amount, message } = req.body;
-        if (!['male', 'female'].includes(userType)) return res.status(400).json({ success: false, message: 'Invalid userType' });
+        if (!['male', 'female', 'agency'].includes(userType)) return res.status(400).json({ success: false, message: 'Invalid userType' });
         if (!['wallet', 'coin'].includes(operationType)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_OPERATION_TYPE });
         if (!['credit', 'debit'].includes(action)) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_ACTION });
         const numericAmount = Number(amount);
         if (!Number.isFinite(numericAmount) || numericAmount <= 0) return res.status(400).json({ success: false, message: messages.USER_MANAGEMENT.INVALID_AMOUNT });
 
-        const Model = userType === 'male' ? MaleUser : FemaleUser;
+        let Model;
+        if (userType === 'male') {
+            Model = MaleUser;
+        } else if (userType === 'female') {
+            Model = FemaleUser;
+        } else if (userType === 'agency') {
+            Model = AgencyUser;
+        }
+        
         const user = await Model.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: messages.COMMON.USER_NOT_FOUND });
 

@@ -11,13 +11,28 @@ const maleUserSchema = new mongoose.Schema({
   gender: { type: String, enum: ['male', 'female', 'other'] },
   interests: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Interest' }],
   languages: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Language' }],
-  // New fields for manually entered preferences
-  hobbies: [{ type: String }],
-  sports: [{ type: String }],
-  film: [{ type: String }],
-  music: [{ type: String }],
-  travel: [{ type: String }],
-  relationshipGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'RelationshipGoal' }],
+  // New fields for manually entered preferences (as objects with id and name)
+  hobbies: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  sports: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  film: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  music: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  travel: [{ 
+    id: { type: String, required: true },
+    name: { type: String, required: true }
+  }],
+  relationshipGoals: [{ type: mongoose.Schema.Types.ObjectId, ref: 'RelationGoal' }],
   religion: { type: mongoose.Schema.Types.ObjectId, ref: 'Religion' },
   height: { type: String },
   searchPreferences: { type: String, enum: ['male', 'female', 'both'], default: 'female' },
@@ -25,7 +40,7 @@ const maleUserSchema = new mongoose.Schema({
   favourites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'FemaleUser' }],
   malefollowing: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleFollowing' }],
   malefollowers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleFollowers' }], // Added missing followers array
-  images: [String], // Array of image URLs
+  images: [{ type: mongoose.Schema.Types.ObjectId, ref: 'MaleImage' }], // Array of image references
   balance: { type: Number, default: 0 }, // Deprecated: legacy combined balance
   walletBalance: { type: Number, default: 0 },
   coinBalance: { type: Number, default: 0 },

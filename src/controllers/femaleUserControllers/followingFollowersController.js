@@ -8,6 +8,7 @@ const BlockList = require('../../models/femaleUser/BlockList');
 const MaleBlockList = require('../../models/maleUser/BlockList');
 const FollowRequest = require('../../models/common/FollowRequest');
 const messages = require('../../validations/messages');
+const { getDetailedFollowingList, getDetailedFollowersList } = require('../../utils/followingFollowersHelper');
 
 // Follow a Male User (Explicit follow-back functionality)
 exports.followBackUser = async (req, res) => {
@@ -228,24 +229,9 @@ exports.unfollowUser = async (req, res) => {
 // Get Female User's Following List
 exports.getFemaleFollowingList = async (req, res) => {
   try {
-    const femaleUser = await FemaleUser.findById(req.user._id);
+    const detailedFollowingList = await getDetailedFollowingList(req.user._id, 'female');
     
-    // Get list of users that the current female user has blocked
-    const blockedByCurrentUser = await BlockList.find({ femaleUserId: req.user._id }).select('blockedUserId');
-    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
-    
-    // Get list of users who have blocked the current female user
-    const blockedByOthers = await MaleBlockList.find({ blockedUserId: req.user._id }).select('maleUserId');
-    const blockedByOthersIds = blockedByOthers.map(block => block.maleUserId);
-
-    const followingList = await FemaleFollowing.find({ 
-      femaleUserId: femaleUser._id,
-      maleUserId: { 
-        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
-      }
-    }).populate('maleUserId', 'firstName lastName email');
-    
-    res.json({ success: true, data: followingList });
+    res.json({ success: true, data: detailedFollowingList });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -254,22 +240,9 @@ exports.getFemaleFollowingList = async (req, res) => {
 // Get Female User's Followers List
 exports.getFemaleFollowersList = async (req, res) => {
   try {
-    // Get list of users that the current female user has blocked
-    const blockedByCurrentUser = await BlockList.find({ femaleUserId: req.user._id }).select('blockedUserId');
-    const blockedByCurrentUserIds = blockedByCurrentUser.map(block => block.blockedUserId);
+    const detailedFollowersList = await getDetailedFollowersList(req.user._id, 'female');
     
-    // Get list of users who have blocked the current female user
-    const blockedByOthers = await MaleBlockList.find({ blockedUserId: req.user._id }).select('maleUserId');
-    const blockedByOthersIds = blockedByOthers.map(block => block.maleUserId);
-
-    const followersList = await FemaleFollowers.find({ 
-      femaleUserId: req.user._id,
-      maleUserId: { 
-        $nin: [...blockedByCurrentUserIds, ...blockedByOthersIds] // Exclude users blocked by either party
-      }
-    }).populate('maleUserId', 'firstName lastName email');
-    
-    res.json({ success: true, data: followersList });
+    res.json({ success: true, data: detailedFollowersList });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
